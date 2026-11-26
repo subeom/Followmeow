@@ -2235,7 +2235,7 @@ Add to `package.json`:
     "mac": {
       "category": "public.app-category.utilities",
       "icon": "build/icon.icns",
-      "target": ["dmg", "zip"]
+      "target": ["zip"]
     },
     "win": {
       "icon": "build/icon.ico",
@@ -2294,8 +2294,8 @@ jobs:
 
 Create `.github/workflows/release.yml` with the same four-row package matrix on
 tags matching `v*`, artifact download in a second job, and
-`softprops/action-gh-release@v2` with `release/**/*.dmg`,
-`release/**/*.zip`, and `release/**/*.exe` only after all matrix jobs pass. Mark
+`softprops/action-gh-release@v2` with `release/**/*.zip` and
+`release/**/*.exe` only after all matrix jobs pass. Mark
 the release as an unsigned build unless an explicit signing job has verified
 signatures.
 

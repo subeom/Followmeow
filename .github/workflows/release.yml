@@ -64,6 +64,5 @@ jobs:
           generate_release_notes: true
           body_path: RELEASE_NOTES.md
           files: |
-            release/**/*.dmg
             release/**/*.zip
             release/**/*.exe

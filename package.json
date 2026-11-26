@@ -3,9 +3,6 @@
   "version": "0.1.0",
   "description": "A cursor-following desktop cat for macOS and Windows.",
   "main": "dist/main/index.js",
-  "directories": {
-    "doc": "docs"
-  },
   "scripts": {
     "test": "vitest run",
     "check": "tsc -p tsconfig.json --noEmit",
@@ -13,11 +10,12 @@
     "icons:generate": "node scripts/generate-tray-icons.mjs",
     "test:watch": "vitest",
     "build": "tsc -p tsconfig.json && node scripts/copy-static.mjs",
+    "postinstall": "node scripts/ensure-electron.mjs",
     "start": "npm run build && electron .",
-    "package:mac:x64": "electron-builder --mac --x64",
-    "package:mac:arm64": "electron-builder --mac --arm64",
-    "package:win:x64": "electron-builder --win --x64",
-    "package:win:arm64": "electron-builder --win --arm64",
+    "package:mac:x64": "electron-builder --mac --x64 --publish never",
+    "package:mac:arm64": "electron-builder --mac --arm64 --publish never",
+    "package:win:x64": "electron-builder --win --x64 --publish never",
+    "package:win:arm64": "electron-builder --win --arm64 --publish never",
     "verify:mac:x64": "node scripts/verify-macos-architecture.mjs x64",
     "verify:mac:arm64": "node scripts/verify-macos-architecture.mjs arm64",
     "verify:win:x64": "node scripts/verify-pe-architecture.mjs x64",
@@ -30,6 +28,10 @@
     "desktop"
   ],
   "author": "subeomlee",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/subeom/Followmeow.git"
+  },
   "license": "GPL-2.0-only",
   "type": "commonjs",
   "build": {
@@ -65,7 +67,6 @@
       "category": "public.app-category.utilities",
       "icon": "build/icon.png",
       "target": [
-        "dmg",
         "zip"
       ]
     },

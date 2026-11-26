@@ -446,8 +446,8 @@ channels, or external protocol handling.
 
 | Target | Electron architecture | Artifact |
 |---|---|---|
-| macOS x64 | `x64` | ZIP and DMG for Intel Macs |
-| macOS arm64 | `arm64` | ZIP and DMG for Apple silicon |
+| macOS x64 | `x64` | ZIP for Intel Macs |
+| macOS arm64 | `arm64` | ZIP for Apple silicon |
 | Windows x64 | `x64` | NSIS installer and ZIP |
 | Windows arm64 | `arm64` | NSIS installer and ZIP |
 
@@ -539,7 +539,7 @@ Implementation is complete only when all criteria are true:
 | Tray/settings | Enable, glyph, speed, reduced motion, launch-at-login, and quit persist | Same | Same | Same |
 | Automatic A/한 | `/usr/bin/defaults` parser follows 2SetHangul/known-Latin layouts; provider failure hides the glyph and backs off | Same | Foreground layout/IME state parser follows Korean-open, Korean-closed, Latin, unknown, and malformed output | Same |
 | Privacy | Runtime request log is empty and OS permission list has no added requirement | Same | Same | Same |
-| Packaging | ZIP and DMG install; uninstaller not required on macOS | Same | NSIS installs, launches, and uninstalls | Same |
+| Packaging | ZIP unpacks and launches; uninstaller not required on macOS | Same | NSIS installs, launches, and uninstalls | Same |
 
 Automated GitHub Actions jobs must cover clean build, type checking, tests,
 packaging, architecture inspection, and artifact upload for every row. Physical
