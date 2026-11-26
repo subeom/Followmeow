@@ -55,6 +55,10 @@ export class OverlayWindow {
     this.window.webContents.on("will-navigate", (event) => {
       event.preventDefault();
     });
+    this.window.webContents.session.setPermissionRequestHandler(
+      (_webContents, _permission, callback) => callback(false),
+    );
+    this.window.webContents.session.setPermissionCheckHandler(() => false);
     this.loadPromise = this.window.loadFile(rendererPath);
   }
 

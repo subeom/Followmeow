@@ -20,6 +20,10 @@ function fakeWindow() {
       send: vi.fn(),
       setWindowOpenHandler: vi.fn(),
       on: vi.fn(),
+      session: {
+        setPermissionRequestHandler: vi.fn(),
+        setPermissionCheckHandler: vi.fn(),
+      },
     },
   };
 }
