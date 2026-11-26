@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Followmeow</title>
+    <link rel="stylesheet" href="./index.css" />
+  </head>
+  <body>
+    <main id="followmeow-canvas" data-visible="false" aria-hidden="true">
+      <img
+        id="followmeow-cat"
+        src="./assets/cat-idle.svg"
+        alt=""
+        draggable="false"
+      />
+      <span id="followmeow-glyph"></span>
+    </main>
+    <script src="./index.js"></script>
+  </body>
+</html>
