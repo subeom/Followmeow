@@ -9,6 +9,7 @@
   "scripts": {
     "test": "vitest run",
     "check": "tsc -p tsconfig.json --noEmit",
+    "art:normalize": "node scripts/normalize-cat-art.mjs",
     "test:watch": "vitest",
     "build": "tsc -p tsconfig.json && node scripts/copy-static.mjs",
     "start": "npm run build && electron .",
