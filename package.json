@@ -1,0 +1,36 @@
+{
+  "name": "followmeow",
+  "version": "0.1.0",
+  "description": "A cursor-following desktop cat for macOS and Windows.",
+  "main": "dist/main/index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test:watch": "vitest",
+    "build": "tsc -p tsconfig.json && node scripts/copy-static.mjs",
+    "start": "npm run build && electron .",
+    "package:mac:x64": "electron-builder --mac --x64",
+    "package:mac:arm64": "electron-builder --mac --arm64",
+    "package:win:x64": "electron-builder --win --x64",
+    "package:win:arm64": "electron-builder --win --arm64",
+    "verify:mac:x64": "node scripts/verify-macos-architecture.mjs x64",
+    "verify:mac:arm64": "node scripts/verify-macos-architecture.mjs arm64",
+    "verify:win:x64": "node scripts/verify-pe-architecture.mjs x64",
+    "verify:win:arm64": "node scripts/verify-pe-architecture.mjs arm64"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "GPL-2.0-only",
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "electron": "^37.2.3",
+    "electron-builder": "^26.0.12",
+    "jsdom": "^26.1.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
