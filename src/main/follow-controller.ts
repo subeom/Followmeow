@@ -1,5 +1,9 @@
 import { isCursorSample } from "../domain/contracts";
 import {
+  resolveLanguage,
+  type LanguageObservation,
+} from "../domain/language";
+import {
   clampOverlayOrigin,
   desiredOverlayOrigin,
   findContainingDisplay,
@@ -11,7 +15,6 @@ import {
 } from "../domain/motion";
 import { evaluateVisibility } from "../domain/policy";
 import {
-  LANGUAGE_OBSERVATION_MAX_AGE_MS,
   MAX_FRAME_STEPS,
   OVERLAY_SIZE,
   type AppSettings,
@@ -23,11 +26,6 @@ import {
   type Point,
   type RenderFrame,
 } from "../domain/types";
-
-type AutomaticLanguageObservation = Readonly<{
-  glyph: LanguageGlyph;
-  observedAtMs: number;
-}>;
 
 const FIXED_STEP_SECONDS = 1 / 60;
 
@@ -43,7 +41,7 @@ export class FollowController {
   private motion: MotionState = "idle";
   private motionStartedAtMs = 0;
   private lastMovementAtMs = 0;
-  private automaticLanguage: AutomaticLanguageObservation | null = null;
+  private automaticLanguage: LanguageObservation | null = null;
   private readonly turns = new TurnTracker();
 
   constructor(
@@ -64,7 +62,7 @@ export class FollowController {
     this.reducedMotion = reduced;
   }
 
-  setAutomaticLanguage(observation: AutomaticLanguageObservation): void {
+  setAutomaticLanguage(observation: LanguageObservation): void {
     if (
       (observation.glyph === "hidden" ||
         observation.glyph === "A" ||
@@ -278,18 +276,11 @@ export class FollowController {
   }
 
   private resolveGlyph(nowMs: number): LanguageGlyph {
-    if (this.settings.languageMode !== "automatic") {
-      return this.settings.languageMode;
-    }
-    const observation = this.automaticLanguage;
-    if (observation === null) {
-      return "hidden";
-    }
-    const ageMs = nowMs - observation.observedAtMs;
-    if (ageMs < 0 || ageMs > LANGUAGE_OBSERVATION_MAX_AGE_MS) {
-      return "hidden";
-    }
-    return observation.glyph;
+    return resolveLanguage(
+      this.settings.languageMode,
+      this.automaticLanguage,
+      nowMs,
+    );
   }
 
   private emitHide(reason: HideReason, sequence: number, nowMs: number): void {

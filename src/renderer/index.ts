@@ -1,5 +1,6 @@
 import type { RenderFrame } from "../domain/types";
 import { toViewModel } from "./view-model";
+import { GlyphTransition } from "./glyph-transition";
 
 declare global {
   interface Window {
@@ -19,6 +20,10 @@ if (canvas === null || cat === null || glyph === null) {
 }
 
 let lastSequence = -1;
+const glyphTransition = new GlyphTransition(
+  glyph,
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+);
 window.followmeow.onFrame((frame) => {
   if (frame.sequence < lastSequence) {
     return;
@@ -30,8 +35,7 @@ window.followmeow.onFrame((frame) => {
   canvas.dataset.facing = model.scaleX === 1 ? "right" : "left";
   cat.src = model.asset;
   cat.style.transform = `scaleX(${model.scaleX})`;
-  glyph.textContent = model.glyph;
-  glyph.dataset.glyph = model.glyph || "hidden";
+  glyphTransition.update(model.glyph);
 });
 
 window.followmeow.ready();

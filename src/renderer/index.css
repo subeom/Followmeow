@@ -62,6 +62,10 @@ body {
   opacity: 0;
 }
 
+#followmeow-glyph[data-fading="true"] {
+  opacity: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   #followmeow-glyph {
     transition: none;

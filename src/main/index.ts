@@ -16,6 +16,10 @@ import type {
 import { join } from "node:path";
 import { CursorSampler } from "./cursor-sampler";
 import { FollowController } from "./follow-controller";
+import {
+  LanguageProvider,
+  runProcess,
+} from "./language-provider";
 import { AppLifecycle } from "./lifecycle";
 import { OverlayWindow } from "./overlay-window";
 import { SettingsStore } from "./settings-store";
@@ -144,11 +148,16 @@ async function bootstrap(): Promise<void> {
     (sample) => controller.tick(sample, performance.now()),
     (reason) => controller.invalidate(reason, performance.now()),
   );
-  const languageProvider = {
-    async start() {},
-    stop() {},
-    reset() {},
-  };
+  const windowsLanguageScript = app.isPackaged
+    ? join(process.resourcesPath, "resources", "win-input-language.ps1")
+    : join(app.getAppPath(), "resources", "win-input-language.ps1");
+  const languageProvider = new LanguageProvider(
+    platform,
+    runProcess,
+    (observation) => controller.setAutomaticLanguage(observation),
+    () => trayPort.showError("language-provider-failed"),
+    windowsLanguageScript,
+  );
 
   overlay = new OverlayWindow(
     (options) => {
