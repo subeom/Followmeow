@@ -1,1 +1,2 @@
-artwork/source/*.svg -whitespace
+artwork/source/* -text -whitespace
+artwork/visual-spec.md -text -whitespace

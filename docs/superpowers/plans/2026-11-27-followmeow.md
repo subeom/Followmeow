@@ -2270,8 +2270,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: macos-14, platform: mac, arch: x64 }
-          - { os: macos-14, platform: mac, arch: arm64 }
+          - { os: macos-13, platform: mac, arch: x64 }
+          - { os: macos-13, platform: mac, arch: arm64 }
           - { os: windows-2022, platform: win, arch: x64 }
           - { os: windows-2022, platform: win, arch: arm64 }
     steps:
