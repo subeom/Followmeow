@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            platform: mac
+            arch: x64
+          - os: macos-14
+            platform: mac
+            arch: arm64
+          - os: windows-2022
+            platform: win
+            arch: x64
+          - os: windows-2022
+            platform: win
+            arch: arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+      - run: npm run package:${{ matrix.platform }}:${{ matrix.arch }}
+      - run: npm run verify:${{ matrix.platform }}:${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.platform }}-${{ matrix.arch }}
+          if-no-files-found: error
+          path: release/
+
+  publish:
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
+          files: |
+            release/**/*.dmg
+            release/**/*.zip
+            release/**/*.exe

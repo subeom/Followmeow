@@ -27,6 +27,51 @@
   "author": "",
   "license": "GPL-2.0-only",
   "type": "commonjs",
+  "build": {
+    "appId": "com.subeom.Followmeow",
+    "productName": "Followmeow",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "files": [
+      "dist/**/*",
+      "LICENSE",
+      "NOTICE",
+      "THIRD_PARTY_NOTICES.md",
+      "PRIVACY.md"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/win-input-language.ps1",
+        "to": "resources/win-input-language.ps1"
+      },
+      {
+        "from": "THIRD_PARTY_NOTICES.md",
+        "to": "THIRD_PARTY_NOTICES.md"
+      },
+      {
+        "from": "PRIVACY.md",
+        "to": "PRIVACY.md"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.utilities",
+      "icon": "build/icon.png",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    }
+  },
   "devDependencies": {
     "@types/node": "^22.15.30",
     "electron": "^37.2.3",

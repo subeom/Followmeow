@@ -120,17 +120,41 @@ function crc32(buffer) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-function png(buffer) {
+function scale(buffer, factor) {
+  const width = WIDTH * factor;
+  const height = HEIGHT * factor;
+  const scaled = Buffer.alloc(width * height * 4);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const source =
+        (Math.floor(y / factor) * WIDTH + Math.floor(x / factor)) * 4;
+      buffer.copy(
+        scaled,
+        (y * width + x) * 4,
+        source,
+        source + 4,
+      );
+    }
+  }
+  return scaled;
+}
+
+function png(buffer, width = WIDTH, height = HEIGHT) {
   const header = Buffer.alloc(13);
-  header.writeUInt32BE(WIDTH, 0);
-  header.writeUInt32BE(HEIGHT, 4);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
   header[8] = 8;
   header[9] = 6;
-  const scanlines = Buffer.alloc((WIDTH * 4 + 1) * HEIGHT);
-  for (let y = 0; y < HEIGHT; y += 1) {
-    const target = y * (WIDTH * 4 + 1);
+  const scanlines = Buffer.alloc((width * 4 + 1) * height);
+  for (let y = 0; y < height; y += 1) {
+    const target = y * (width * 4 + 1);
     scanlines[target] = 0;
-    buffer.copy(scanlines, target + 1, y * WIDTH * 4, (y + 1) * WIDTH * 4);
+    buffer.copy(
+      scanlines,
+      target + 1,
+      y * width * 4,
+      (y + 1) * width * 4,
+    );
   }
   return Buffer.concat([
     Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
@@ -141,7 +165,9 @@ function png(buffer) {
 }
 
 await mkdir("src/main/assets", { recursive: true });
+await mkdir("build", { recursive: true });
 await Promise.all([
   writeFile("src/main/assets/tray.png", png(cat(false))),
   writeFile("src/main/assets/tray-disabled.png", png(cat(true))),
+  writeFile("build/icon.png", png(scale(cat(false), 16), 512, 512)),
 ]);

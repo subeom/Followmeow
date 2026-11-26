@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: ${{ matrix.platform }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            platform: mac
+            arch: x64
+          - os: macos-14
+            platform: mac
+            arch: arm64
+          - os: windows-2022
+            platform: win
+            arch: x64
+          - os: windows-2022
+            platform: win
+            arch: arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+      - run: npm run package:${{ matrix.platform }}:${{ matrix.arch }}
+      - run: npm run verify:${{ matrix.platform }}:${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: followmeow-${{ matrix.platform }}-${{ matrix.arch }}
+          if-no-files-found: error
+          path: release/
