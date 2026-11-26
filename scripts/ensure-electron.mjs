@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 subeomlee
 // SPDX-License-Identifier: GPL-2.0-only
 
-import { access, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
@@ -51,7 +51,9 @@ const zipPath = await downloadArtifact({
   arch: process.arch,
   checksums,
 });
-await run("tar", ["-xf", zipPath, "-C", join(electronRoot, "dist")], {
+const dist = join(electronRoot, "dist");
+await mkdir(dist, { recursive: true });
+await run("tar", ["-xf", zipPath, "-C", dist], {
   windowsHide: true,
 });
 await writeFile(join(electronRoot, "path.txt"), platformPath);
