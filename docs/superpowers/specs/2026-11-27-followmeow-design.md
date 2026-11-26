@@ -10,9 +10,9 @@
 Followmeow is a small desktop companion that renders an original side-profile
 cat near the system mouse cursor. The cat follows across displays, clamps to the
 visible display bounds, changes between idle, walk, run, and turn poses, and
-optionally displays a manually selected `A` or `한` glyph in its torso. The
-application is controlled from the system tray and does not accept mouse or
-keyboard input.
+displays an automatically classified or manually selected `A` or `한` glyph in
+its torso. The application is controlled from the system tray and does not
+accept mouse or keyboard input.
 
 The product is intentionally extracted from the cursor-adjacent companion work
 in the user's Deskflow branch
@@ -32,11 +32,14 @@ The first implementation must deliver all of the following:
 4. A deterministic spring follower, display clamping, stale-sample policy, and
    display-transition reset.
 5. Original side-profile cat artwork with idle, walk, run, and turn poses.
-6. A torso glyph that is hidden, `A`, or `한`; the choice is explicitly manual.
+6. A torso glyph mode of automatic, hidden, `A`, or `한`. Automatic mode reads
+   only an operating-system layout identifier and, on Windows, the IME open
+   bit. Manual modes override the provider.
 7. A system tray menu for visibility, glyph, motion, launch-at-login, and quit.
 8. Persisted, locally validated settings.
 9. macOS and Windows packages for x64 and arm64.
-10. Unit tests for policy, geometry, settings, and motion; renderer and main
+10. Unit tests for policy, geometry, settings, motion, platform language
+    classifiers, process parsers, and provider retry/backoff; renderer and main
     integration tests; and a four-target release matrix.
 11. GPL-2.0-only licensing plus attribution for Deskflow and the original
     Followmeow cat artwork.
@@ -45,7 +48,8 @@ The first implementation must deliver all of the following:
 
 The first implementation will not:
 
-- detect the active keyboard input source or claim that `A`/`한` is automatic;
+- infer language from field contents, keycodes, key events, application text,
+  clipboard data, or accessibility values;
 - request Accessibility, Screen Recording, Input Monitoring, or similar
   permissions;
 - read the focused application, focused field, text contents, keycodes,
@@ -77,10 +81,15 @@ DOM or operating-system behavior.
 | `hidden-display` | No display contains the cursor, display topology changes, or the configured full-screen policy suppresses the cat | Cat hides immediately and follower state resets | A current display is resolved |
 | `quitting` | App shutdown begins | Polling stops before windows are destroyed | Process exits |
 
+Language glyph state is orthogonal to cursor state. In automatic mode, a fresh
+Korean result renders `한`, a fresh known-Latin result renders `A`, and an
+unknown, stale, or failed result renders no glyph. Manual `A`, `한`, and hidden
+modes bypass the provider result. A failed automatic provider is retried with
+exponential backoff, never in a tight loop.
+
 All state transitions are deterministic from the previous state, a cursor
-sample, a monotonic timestamp, and validated settings. A stale source never
-leaves an old `A` or `한` glyph visible: the renderer clears the frame as part
-of every hide transition.
+sample, a glyph observation, a monotonic timestamp, and validated settings. A
+stale source never leaves an old `A` or `한` glyph visible.
 
 ## 5. Architecture
 
@@ -117,7 +126,9 @@ environment variables, or arbitrary `invoke` methods.
 | `src/domain/geometry.ts` | Display containment, logical overlay bounds, and finite clamping |
 | `src/domain/policy.ts` | `show`/`hide` decisions and sanitized hide reasons |
 | `src/domain/motion.ts` | Fixed-step spring, heading, motion state, turn lockout, and pose selection |
+| `src/domain/language.ts` | Automatic/manual glyph resolution, platform classifiers, parsing, and freshness |
 | `src/main/settings-store.ts` | Atomic local JSON load, independent-key validation, and atomic save |
+| `src/main/language-provider.ts` | Exact child-process invocation, timeout, and retry/backoff |
 | `src/main/cursor-sampler.ts` | Timer-driven cursor/display snapshots and stale-age metadata |
 | `src/main/follow-controller.ts` | Frame sampling, policy evaluation, motion update, and IPC frame production |
 | `src/main/overlay-window.ts` | Overlay configuration, bounds updates, IPC frame delivery, and cleanup |
@@ -139,6 +150,16 @@ Electron screen API
   -> validated RenderFrame
   -> preload bridge
   -> isolated renderer
+```
+
+Automatic glyph observations travel through a separate, lower-frequency path:
+
+```text
+macOS /usr/bin/defaults or packaged Windows PowerShell script
+  -> exact process-output parser
+  -> platform classifier
+  -> freshness/manual-override resolver
+  -> validated RenderFrame glyph
 ```
 
 Tray changes use the opposite path but remain serialized in the main process:
@@ -257,6 +278,11 @@ heading changes. The glyph is renderer text over the artwork's designated
 torso position. It is not part of the SVG source, so changing among hidden,
 `A`, and `한` does not modify or replace the art.
 
+Automatic glyph changes use the approved 240 ms input-transition behavior: fade
+the old glyph for 96 ms, hold a body-only soft state from 96-120 ms, then reveal
+the new glyph by 240 ms. A glyph switch never moves the cat's contact points or
+changes its scale.
+
 ## 8. Overlay and platform APIs
 
 ### 8.1 Electron overlay
@@ -289,12 +315,14 @@ enabled. On Windows it remains a tool-free topmost window, uses
 | All workspaces/full-screen visibility | `setVisibleOnAllWorkspaces` and `setFullScreenable(false)` | Not required | Continue on the current workspace; if full-screen visibility cannot be guaranteed, hide over full-screen windows by policy |
 | Reduced motion | `systemPreferences.getAnimationSettings()` plus renderer media query | Same | Default to reduced motion and no continuous idle animation |
 | Launch at login | `app.setLoginItemSettings()` | `app.setLoginItemSettings()` | Keep setting unchecked and record a sanitized local warning |
-| Native input language | Not exposed reliably by this approved Electron boundary | Not exposed reliably by this approved Electron boundary | No automatic glyph; require an explicit manual selection |
+| Input-layout source | `/usr/bin/defaults read com.apple.HIToolbox AppleCurrentKeyboardLayoutInputSourceID` | Packaged PowerShell script using public `user32`/`imm32` layout and IME status calls | Hide the automatic glyph, keep manual override available, and use bounded backoff |
 | Native tray | Electron `Tray` | Electron `Tray` | Write a sanitized fatal lifecycle error and exit; do not run as an uncontrollable background app |
 
-No native helper, shell script, AppleScript, PowerShell process, or background
-service is permitted to fill an Electron API gap. Such a helper would require a
-new approved design before implementation.
+The only permitted external process is the exact read-only language-layout
+provider: macOS executes `/usr/bin/defaults` directly with arguments, and
+Windows executes the packaged PowerShell file with `-NoProfile`,
+`-NonInteractive`, and a timeout. No shell interpolation, arbitrary script,
+text capture, synthetic input, or background service is permitted.
 
 ## 9. Settings
 
@@ -307,7 +335,7 @@ state; it must not report success.
 | Setting | Type/range | Default | Surface |
 |---|---:|---:|---|
 | `enabled` | boolean | `true` | Tray `Enable Followmeow` |
-| `languageGlyph` | `hidden`, `A`, `한` | `hidden` | Tray `Torso label` submenu |
+| `languageMode` | `automatic`, `hidden`, `A`, `한` | `automatic` | Tray `Torso label` submenu |
 | `followSpeedPercent` | integer 75-150 | `100` | Tray `Follow speed` submenu |
 | `showOverFullScreen` | boolean | `true` on macOS; `false` on Windows | Tray `Show over full screen` |
 | `launchAtLogin` | boolean | `false` | Tray `Launch at login` |
@@ -329,7 +357,7 @@ The menu order and labels are stable:
 1. `Followmeow` (disabled information row and version)
 2. `Enable Followmeow`
 3. separator
-4. `Torso label` submenu: `Hidden`, `A`, `한`
+4. `Torso label` submenu: `Automatic`, `Hidden`, `A`, `한`
 5. `Follow speed` submenu: `Calm (75%)`, `Normal (100%)`, `Playful (125%)`,
    `Quick (150%)`
 6. `Reduce motion`
@@ -353,12 +381,17 @@ Followmeow collects no text or user activity. It reads only:
 - cursor position in DIP coordinates;
 - display rectangles and display identity;
 - system reduced-motion preference;
+- on macOS, the `AppleCurrentKeyboardLayoutInputSourceID` string returned by
+  `/usr/bin/defaults`;
+- on Windows, the foreground layout language ID and IME-open Boolean returned
+  by the packaged PowerShell provider;
 - settings selected by the user;
 - local operating-system launch-at-login state.
 
-Coordinates exist only in process memory. They are not written to logs, settings,
-crash reports, or telemetry. Logs contain only sanitized hide reason enums,
-versions, and lifecycle errors without path values or cursor coordinates.
+Coordinates and layout observations exist only in process memory. They are not
+written to logs, settings, crash reports, or telemetry. Logs contain only
+sanitized hide/provider reason enums, versions, and lifecycle errors without
+path values, cursor coordinates, or raw layout strings.
 
 ### 11.2 Renderer hardening
 
@@ -401,9 +434,10 @@ channels, or external protocol handling.
 - An invalid renderer message is ignored and reported by sanitized reason.
 - A failed settings load/writes never keeps stale tray UI as if persistence
   succeeded.
-- Unknown input-language state renders no glyph.
-- Any automatic language detector added later must have a separate reviewed
-  design proving permission, freshness, privacy, and platform behavior.
+- Automatic provider timeout, malformed output, non-zero exit, or stale state
+  renders no glyph. A manual `A`, `한`, or hidden selection remains valid.
+- A provider failure is reported once for an unchanged error state, then retried
+  after 1, 2, 4, 8, 16, and 30 second intervals. Recovery resets the backoff.
 
 ## 12. Packaging and releases
 
@@ -419,7 +453,8 @@ channels, or external protocol handling.
 Artifacts use normal Electron native architecture selection; the package's
 JavaScript and renderer assets are architecture-independent. Universal
 artifacts are intentionally not used because they obscure whether each target
-was separately produced and verified.
+was separately produced and verified. The Windows PowerShell provider is copied
+as an `extraResource` outside `app.asar`.
 
 GitHub Actions has an operating-system/architecture matrix for all four targets.
 Every job installs with `npm ci`, runs type checking and unit/integration tests,
@@ -468,8 +503,9 @@ Implementation is complete only when all criteria are true:
    glyph data.
 6. Changing displays resets motion and does not animate the cat through the
    gap between monitors.
-7. `Hidden`, `A`, and `한` choices render exactly the selected torso state.
-   Default install shows no glyph and no claim of automatic language detection.
+7. `Automatic`, `Hidden`, `A`, and `한` choices render the resolved torso state.
+   Automatic mode uses only a verified provider result; malformed, stale, or
+   unknown output hides the glyph. Manual modes always override it.
 8. Invalid JSON and out-of-range settings recover as specified, and a failed
    settings save is not shown as successful.
 9. Reduced motion disables continuous idle animation, walk/run cycling,
@@ -477,8 +513,9 @@ Implementation is complete only when all criteria are true:
 10. No Accessibility, Screen Recording, Input Monitoring, or equivalent
     permission prompt appears.
 11. Static and runtime checks find no network request, telemetry SDK,
-    `Accessibility` value read, clipboard access, keycode access, synthetic
-    input call, or native addon.
+    `Accessibility` value read, clipboard access, key-event read, text-field
+    read, synthetic input call, or native addon. The only external processes are
+    the exact macOS `defaults` command and the packaged Windows PowerShell file.
 12. Quitting from the tray stops polling, removes the tray and overlay, and
     restores no changed cursor or keyboard state.
 13. `npm ci`, `npm run check`, `npm test`, and `npm run build` pass from a clean
@@ -499,6 +536,7 @@ Implementation is complete only when all criteria are true:
 | Full-screen | Cat appears in full-screen policy mode on supported workspace; hides if capability is unavailable | Same | Same with Windows borderless/full-screen app | Same |
 | Sleep/resume | Cat hides on stale after resume, then recovers without stale position | Same | Same | Same |
 | Tray/settings | Enable, glyph, speed, reduced motion, launch-at-login, and quit persist | Same | Same | Same |
+| Automatic A/한 | `/usr/bin/defaults` parser follows 2SetHangul/known-Latin layouts; provider failure hides the glyph and backs off | Same | Foreground layout/IME state parser follows Korean-open, Korean-closed, Latin, unknown, and malformed output | Same |
 | Privacy | Runtime request log is empty and OS permission list has no added requirement | Same | Same | Same |
 | Packaging | ZIP and DMG install; uninstaller not required on macOS | Same | NSIS installs, launches, and uninstalls | Same |
 
@@ -520,10 +558,11 @@ behavior.
 3. **Windows arm64 behavior:** Electron Windows x64 paths must not be reused in
    an ARM64 artifact. Mitigation: inspect PE architecture and test on Windows 11
    arm64 before release.
-4. **Input-language expectation:** The requested A/한 behavior can be visually
-   reproduced, but Electron cannot safely provide reliable automatic input
-   language state under the approved boundary. Mitigation: show the label as
-   manual, default it hidden, and document that no automatic state is claimed.
+4. **Automatic input-language classification:** macOS layout naming and Windows
+   IME state are OS signals rather than field text, but malformed or uncommon
+   layout identifiers can be ambiguous. Mitigation: explicit Korean and Latin
+   allowlists, unknown-to-hidden behavior, manual override, process timeouts,
+   parser tests, and bounded provider backoff.
 5. **Original artwork fidelity:** The runtime pose set is derived from external
    approved source files. Mitigation: preserve source bytes, record SHA-256
    hashes, and add structure/snapshot tests for each normalized pose.

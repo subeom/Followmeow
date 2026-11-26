@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build Followmeow as a tray-only Electron cat companion that follows the cursor on macOS and Windows x64/arm64 without collecting input activity or claiming automatic input-language detection.
+**Goal:** Build Followmeow as a tray-only Electron cat companion that follows the cursor on macOS and Windows x64/arm64 while classifying only OS layout/IME state for A/한 and preserving manual override.
 
 **Architecture:** A TypeScript main process owns Electron screen sampling, deterministic policy/geometry/motion, settings, the click-through overlay, and the tray. A sandboxed, context-isolated renderer receives only validated frames; all behavioral logic remains in pure domain modules covered by Vitest. Electron Builder and a four-row GitHub Actions matrix package separate x64 and arm64 releases.
 
@@ -42,8 +42,10 @@ for one.
 | `src/domain/geometry.ts` | Display containment, follower origin, clamping |
 | `src/domain/policy.ts` | Show/hide fail-closed policy |
 | `src/domain/motion.ts` | Fixed-step spring and motion state machine |
+| `src/domain/language.ts` | macOS/Windows output parsers, classifiers, freshness, and manual override |
 | `src/domain/settings.ts` | Strict settings defaults and validation |
 | `src/main/settings-store.ts` | Atomic settings persistence |
+| `src/main/language-provider.ts` | Exact process invocation, timeout, and retry/backoff |
 | `src/main/cursor-sampler.ts` | Electron screen adapter and 16 ms polling |
 | `src/main/follow-controller.ts` | Controller composition and render-frame sequence |
 | `src/main/overlay-window.ts` | BrowserWindow security and placement |
@@ -55,6 +57,7 @@ for one.
 | `src/renderer/view-model.ts` | Pure frame-to-render view model |
 | `src/renderer/index.ts` | DOM application of validated frames |
 | `src/renderer/assets/*.svg` | Six normalized runtime pose assets |
+| `resources/win-input-language.ps1` | Read-only Windows foreground layout/IME state probe |
 | `artwork/source/*` | Preserved approved source art and visual spec |
 | `tests/**/*.test.ts` | Unit and integration coverage |
 | `.github/workflows/ci.yml` | Test/build matrix |
@@ -345,6 +348,7 @@ export type CursorSample = Readonly<{
 }>;
 export type MotionState = "idle" | "walk" | "run" | "turn";
 export type LanguageGlyph = "hidden" | "A" | "한";
+export type LanguageMode = "automatic" | LanguageGlyph;
 export type MotionPolicy = "system" | "reduced";
 export type PlatformName = "darwin" | "win32";
 export type HideReason =
@@ -357,7 +361,7 @@ export type HideReason =
   | "quitting";
 export type AppSettings = Readonly<{
   enabled: boolean;
-  languageGlyph: LanguageGlyph;
+  languageMode: LanguageMode;
   followSpeedPercent: number;
   showOverFullScreen: boolean;
   launchAtLogin: boolean;
@@ -801,13 +805,14 @@ describe("settings", () => {
   it("uses platform-specific full-screen defaults", () => {
     expect(defaultSettings("darwin").showOverFullScreen).toBe(true);
     expect(defaultSettings("win32").showOverFullScreen).toBe(false);
+    expect(defaultSettings("darwin").languageMode).toBe("automatic");
   });
 
   it("validates each known key independently", () => {
     const result = decodeSettings(
       {
         enabled: false,
-        languageGlyph: "한",
+        languageMode: "한",
         followSpeedPercent: 126,
         showOverFullScreen: "yes",
         launchAtLogin: true,
@@ -820,7 +825,7 @@ describe("settings", () => {
     expect(result.settings).toEqual({
       ...defaultSettings("darwin"),
       enabled: false,
-      languageGlyph: "한",
+      languageMode: "한",
       followSpeedPercent: 126,
       launchAtLogin: true,
     });
@@ -835,6 +840,7 @@ describe("settings", () => {
     expect(decodeSettings({ followSpeedPercent: 74.9 }, "win32").settings.followSpeedPercent).toBe(100);
     expect(decodeSettings({ followSpeedPercent: 151 }, "win32").settings.followSpeedPercent).toBe(100);
     expect(decodeSettings({ followSpeedPercent: 125 }, "win32").settings.followSpeedPercent).toBe(125);
+    expect(decodeSettings({ languageMode: "guess" }, "darwin").settings.languageMode).toBe("automatic");
   });
 });
 ```
@@ -854,11 +860,11 @@ describe("settings store", () => {
     const directory = await mkdtemp(join(tmpdir(), "followmeow-settings-"));
     const store = new SettingsStore(join(directory, "settings.json"), "darwin");
     await store.load();
-    await store.save({ ...store.value, enabled: false, languageGlyph: "A" });
+    await store.save({ ...store.value, enabled: false, languageMode: "A" });
 
     const saved = JSON.parse(await readFile(join(directory, "settings.json"), "utf8"));
     expect(saved.enabled).toBe(false);
-    expect(saved.languageGlyph).toBe("A");
+    expect(saved.languageMode).toBe("A");
   });
 
   it("backs up malformed JSON once and loads defaults", async () => {
@@ -1351,7 +1357,7 @@ describe("follow controller", () => {
   it("emits ordered show frames and an accepted torso glyph", () => {
     const frames: unknown[] = [];
     const controller = new FollowController(
-      { ...defaultSettings("darwin"), languageGlyph: "한" },
+      { ...defaultSettings("darwin"), languageMode: "한" },
       false,
       (frame) => frames.push(frame),
     );
@@ -1370,7 +1376,7 @@ describe("follow controller", () => {
   it("hides on stale samples and does not preserve the previous glyph", () => {
     const frames: any[] = [];
     const controller = new FollowController(
-      { ...defaultSettings("win32"), languageGlyph: "A" },
+      { ...defaultSettings("win32"), languageMode: "A" },
       false,
       (frame) => frames.push(frame),
     );
@@ -1445,6 +1451,8 @@ and motion state. It consumes at most `MAX_FRAME_STEPS` fixed steps, resets on a
 display-generation decision, emits exactly one ordered frame per `tick`, and
 uses `sample.sequence` as the output sequence. A manually hidden glyph and a
 hide frame never preserve prior glyph or bounds data.
+`FollowController.setAutomaticLanguage` is added in Task 13; before that task,
+automatic mode resolves to `hidden`, while manual modes resolve immediately.
 
 - [ ] **Step 4: Verify GREEN and repeated invariants**
 
@@ -1582,7 +1590,7 @@ sends the hide frame before calling `hide`.
 `scripts/copy-static.mjs` creates `dist/renderer` without deleting it, copies
 `src/renderer/index.html`, `index.css`, and `assets`, and preserves the
 `dist/renderer/index.js` emitted by TypeScript. Legal files are deliberately
-added by Task 15 after they exist; this task must not make their absence silent.
+added by Task 16 after they exist; this task must not make their absence silent.
 
 - [ ] **Step 4: Verify GREEN and clean static build**
 
@@ -1628,7 +1636,7 @@ describe("tray model", () => {
   it("has stable menu order and selected radio values", () => {
     const menu = buildTrayMenuModel("0.1.0", {
       ...defaultSettings("darwin"),
-      languageGlyph: "한",
+      languageMode: "한",
       followSpeedPercent: 125,
       motionPolicy: "reduced",
     });
@@ -1646,6 +1654,13 @@ describe("tray model", () => {
       "About Followmeow",
       "Quit",
     ]);
+    expect(menu.find((item) => item.label === "Torso label")?.items?.map((item) => item.label)).toEqual([
+      "Automatic",
+      "Hidden",
+      "A",
+      "한",
+    ]);
+    expect(menu.find((item) => item.label === "Torso label")?.items?.find((item) => item.label === "Automatic")?.checked).toBe(false);
     expect(menu.find((item) => item.label === "Torso label")?.items?.find((item) => item.label === "한")?.checked).toBe(true);
     expect(menu.find((item) => item.label === "Follow speed")?.items?.find((item) => item.label === "Playful (125%)")?.checked).toBe(true);
   });
@@ -1680,7 +1695,7 @@ Define a serializable menu model and action union:
 ```ts
 export type TrayAction =
   | { type: "toggle-enabled"; value: boolean }
-  | { type: "set-language"; value: LanguageGlyph }
+  | { type: "set-language"; value: LanguageMode }
   | { type: "set-speed"; value: 75 | 100 | 125 | 150 }
   | { type: "set-reduced-motion"; value: boolean }
   | { type: "set-full-screen"; value: boolean }
@@ -1744,7 +1759,308 @@ git add src/main/tray.ts src/main/index.ts tests/main/tray.test.ts tests/main/li
 git commit -m "feat: add Followmeow tray lifecycle"
 ```
 
-### Task 13: Enforce runtime privacy and process security
+### Task 13: Implement safe automatic A/한 providers
+
+**Files:**
+- Create: `src/domain/language.ts`
+- Create: `src/main/language-provider.ts`
+- Create: `resources/win-input-language.ps1`
+- Modify: `src/main/follow-controller.ts`
+- Modify: `src/main/index.ts`
+- Modify: `src/main/tray.ts`
+- Create: `tests/domain/language.test.ts`
+- Create: `tests/main/language-provider.test.ts`
+- Test: `tests/domain/language.test.ts`
+- Test: `tests/main/language-provider.test.ts`
+
+- [ ] **Step 1: Write failing classifier and manual-override tests**
+
+Create `tests/domain/language.test.ts`:
+
+```ts
+import { describe, expect, it } from "vitest";
+import {
+  classifyMacLayout,
+  parseMacLayout,
+  parseWindowsLayout,
+  resolveLanguage,
+} from "../../src/domain/language";
+
+describe("language output parsing", () => {
+  it("parses only one macOS layout identifier line", () => {
+    expect(parseMacLayout("com.apple.keylayout.2SetHangul\n")).toBe("com.apple.keylayout.2SetHangul");
+    expect(parseMacLayout("")).toBeNull();
+    expect(parseMacLayout("US\nextra")).toBeNull();
+  });
+
+  it.each([
+    ["com.apple.keylayout.2SetHangul", "한"],
+    ["com.apple.inputmethod.Korean.2SetKorean", "한"],
+    ["com.apple.keylayout.ABC", "A"],
+    ["com.apple.keylayout.US", "A"],
+    ["com.apple.keylayout.Dvorak", "A"],
+    ["third.party.korean.guess", "hidden"],
+  ] as const)("classifies %s as %s", (layout, expected) => {
+    expect(classifyMacLayout(layout)).toBe(expected);
+  });
+
+  it.each([
+    ['{"layoutId":"0412","imeOpen":true}', "한"],
+    ['{"layoutId":"0412","imeOpen":false}', "A"],
+    ['{"layoutId":"0409","imeOpen":false}', "A"],
+    ['{"layoutId":"0411","imeOpen":true}', "hidden"],
+    ['{"layoutId":"wat","imeOpen":true}', "hidden"],
+    ['not-json', "hidden"],
+  ] as const)("parses Windows layout state %s as %s", (stdout, expected) => {
+    expect(parseWindowsLayout(stdout)).toBe(expected);
+  });
+});
+
+describe("manual override and freshness", () => {
+  const korean = { glyph: "한", observedAtMs: 5_000 } as const;
+
+  it("uses a fresh automatic result and hides stale/unknown results", () => {
+    expect(resolveLanguage("automatic", korean, 5_500)).toBe("한");
+    expect(resolveLanguage("automatic", korean, 8_001)).toBe("hidden");
+    expect(resolveLanguage("automatic", { glyph: "hidden", observedAtMs: 5_500 }, 5_600)).toBe("hidden");
+  });
+
+  it.each(["hidden", "A", "한"] as const)("manual %s always wins", (mode) => {
+    expect(resolveLanguage(mode, korean, 50_000)).toBe(mode);
+  });
+});
+```
+
+- [ ] **Step 2: Add failing process, timeout, and backoff tests**
+
+Create `tests/main/language-provider.test.ts`:
+
+```ts
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LanguageProvider } from "../../src/main/language-provider";
+
+describe("language provider", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("invokes macOS defaults directly with no shell", async () => {
+    const runner = vi.fn().mockResolvedValue({
+      exitCode: 0,
+      stdout: "com.apple.keylayout.2SetHangul\n",
+      stderr: "",
+      timedOut: false,
+    });
+    const provider = new LanguageProvider("darwin", runner, vi.fn(), vi.fn());
+
+    await provider.poll();
+
+    expect(runner).toHaveBeenCalledWith(
+      "/usr/bin/defaults",
+      ["read", "com.apple.HIToolbox", "AppleCurrentKeyboardLayoutInputSourceID"],
+      1_500,
+    );
+  });
+
+  it("backs off after a non-zero exit and resets after recovery", async () => {
+    const runner = vi
+      .fn()
+      .mockResolvedValueOnce({ exitCode: 1, stdout: "", stderr: "failed", timedOut: false })
+      .mockResolvedValue({ exitCode: 0, stdout: "com.apple.keylayout.ABC\n", stderr: "", timedOut: false });
+    const onState = vi.fn();
+    const onError = vi.fn();
+    const provider = new LanguageProvider("darwin", runner, onState, onError);
+
+    await provider.start();
+    expect(runner).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(999);
+    expect(runner).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(runner).toHaveBeenCalledTimes(2);
+    expect(onState).toHaveBeenLastCalledWith({ glyph: "A", observedAtMs: expect.any(Number) });
+    await vi.advanceTimersByTimeAsync(999);
+    expect(runner).toHaveBeenCalledTimes(3);
+  });
+
+  it("hides on malformed output and timeout without a tight retry", async () => {
+    const runner = vi.fn()
+      .mockResolvedValueOnce({ exitCode: 0, stdout: "bad", stderr: "", timedOut: false })
+      .mockResolvedValueOnce({ exitCode: null, stdout: "", stderr: "", timedOut: true });
+    const onState = vi.fn();
+    const onError = vi.fn();
+    const provider = new LanguageProvider("win32", runner, onState, onError);
+
+    await provider.poll();
+    await provider.poll();
+
+    expect(onState).toHaveBeenLastCalledWith({ glyph: "hidden", observedAtMs: expect.any(Number) });
+    expect(onError).toHaveBeenCalledTimes(2);
+  });
+});
+```
+
+- [ ] **Step 3: Verify RED**
+
+Run:
+
+```bash
+npm test -- --run tests/domain/language.test.ts tests/main/language-provider.test.ts
+```
+
+Expected: FAIL with missing `language` and `language-provider` modules.
+
+- [ ] **Step 4: Implement exact parsers and freshness resolver**
+
+Create `src/domain/language.ts` with:
+
+```ts
+export type LanguageObservation = Readonly<{
+  glyph: LanguageGlyph;
+  observedAtMs: number;
+}>;
+
+export function parseMacLayout(stdout: string): string | null;
+export function classifyMacLayout(identifier: string): LanguageGlyph;
+export function parseWindowsLayout(stdout: string): LanguageGlyph;
+export function resolveLanguage(
+  mode: LanguageMode,
+  observation: LanguageObservation | null,
+  nowMs: number,
+): LanguageGlyph;
+```
+
+`parseMacLayout` accepts exactly one trimmed, non-empty line and a maximum of
+256 bytes. Korean classification is an explicit case-insensitive allowlist for
+identifiers containing `2SetHangul`, `Hangul`, or `.Korean.`. Latin is an
+explicit allowlist of `ABC`, `US`, `USInternational-PC`, `British`,
+`Australian`, `Canadian`, `Colemak`, and `Dvorak` variants under
+`com.apple.keylayout`. Everything else is `hidden`.
+
+`parseWindowsLayout` accepts only a JSON object with `layoutId` matching four
+hexadecimal digits and a Boolean `imeOpen`. Language ID `0412` returns `한`
+only when open and `A` when closed. Known Latin primary IDs `06`, `07`, `08`,
+`09`, `0A`, `0C` for encoded supported Western scripts, `10`, `13`, `14`, `15`,
+`16`, `18`, `1A`, `1B`, `1D`, `1E`, `1F`, `24`, `2A`, `2D`, `3A`, and `3C`
+return `A`; everything else returns `hidden`.
+`resolveLanguage` accepts automatic observations only when `nowMs -
+observedAtMs <= 3000`; manual mode always wins.
+
+- [ ] **Step 5: Add the exact Windows read-only script**
+
+Create `resources/win-input-language.ps1`:
+
+```powershell
+Set-StrictMode -Version 3.0
+$ErrorActionPreference = "Stop"
+
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class FollowmeowIme {
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, IntPtr processId);
+  [DllImport("user32.dll")] public static extern IntPtr GetKeyboardLayout(uint idThread);
+  [DllImport("imm32.dll")] public static extern IntPtr ImmGetDefaultIMEWnd(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern IntPtr SendMessageW(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+}
+"@
+
+$window = [FollowmeowIme]::GetForegroundWindow()
+if ($window -eq [IntPtr]::Zero) { throw "foreground-window-unavailable" }
+$threadId = [FollowmeowIme]::GetWindowThreadProcessId($window, [IntPtr]::Zero)
+$layout = [FollowmeowIme]::GetKeyboardLayout($threadId).ToInt64() -band 0xFFFF
+$imeWindow = [FollowmeowIme]::ImmGetDefaultIMEWnd($window)
+$imeOpen = $false
+if ($imeWindow -ne [IntPtr]::Zero) {
+  $imeOpen = [FollowmeowIme]::SendMessageW($imeWindow, 0x283, [IntPtr]0x0005, [IntPtr]::Zero).ToInt64() -ne 0
+}
+
+@{ layoutId = "{0:X4}" -f $layout; imeOpen = $imeOpen } |
+  ConvertTo-Json -Compress |
+  Write-Output
+```
+
+The script has no key events, text, process enumeration, clipboard, or
+synthetic input. It exits non-zero on `GetForegroundWindow`/PInvoke failure.
+
+- [ ] **Step 6: Implement the provider with bounded process and retry**
+
+`src/main/language-provider.ts` exports:
+
+```ts
+export type ProcessResult = Readonly<{
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+  timedOut: boolean;
+}>;
+export type ProcessRunner = (
+  command: string,
+  args: readonly string[],
+  timeoutMs: number,
+) => Promise<ProcessResult>;
+
+export class LanguageProvider {
+  constructor(
+    platform: PlatformName,
+    runner: ProcessRunner,
+    onState: (observation: LanguageObservation) => void,
+    onError: (reason: "provider-exit" | "provider-timeout" | "provider-output") => void,
+  );
+  start(): Promise<void>;
+  poll(): Promise<void>;
+  reset(): void;
+  stop(): void;
+}
+```
+
+On macOS run exactly `/usr/bin/defaults` with `read`, `com.apple.HIToolbox`,
+and `AppleCurrentKeyboardLayoutInputSourceID`. On Windows run
+`powershell.exe` with `-NoLogo`, `-NoProfile`, `-NonInteractive`,
+`-ExecutionPolicy`, `Bypass`, `-File`, and the packaged script path. The default
+runner uses `child_process.execFile` with `shell: false`, `windowsHide: true`,
+and a 1,500 ms timeout; a timeout kills only that child and never a process by
+name.
+
+Successful observations schedule the next poll after 1,000 ms. Errors emit one
+callback for the unchanged error reason, emit a hidden observation with the
+current monotonic time, and schedule 1, 2, 4, 8, 16, then 30 seconds. `reset`
+clears timers and returns to the 1,000 ms cadence; `stop` prevents all later
+callbacks. No poll may overlap another.
+
+- [ ] **Step 7: Wire provider, manual override, tray, and renderer transition**
+
+Modify `FollowController` to expose
+`setAutomaticLanguage(observation: LanguageObservation): void`. It resolves the
+glyph from `settings.languageMode` on every frame. In `index.ts`, construct the
+provider once, start it only when `languageMode === "automatic"`, stop it for a
+manual mode, and call `controller.setAutomaticLanguage` on provider state.
+The tray menu's `Torso label` submenu lists and checks `Automatic`, `Hidden`,
+`A`, and `한`; switching to `automatic` calls `provider.reset().start()`.
+Implement the 96/120/240 ms glyph opacity transition in renderer CSS/logic and
+assert it in the view-model tests.
+
+- [ ] **Step 8: Verify GREEN, privacy, and backoff**
+
+Run:
+
+```bash
+npm run check
+npm test -- --run tests/domain/language.test.ts tests/main/language-provider.test.ts
+npm test -- --run tests/main/follow-controller.test.ts tests/main/tray.test.ts tests/security
+```
+
+Expected: all language tests pass, provider runner calls never overlap, and
+manual A/한/hidden overrides remain valid while the provider is stopped.
+
+- [ ] **Step 9: Commit automatic providers**
+
+```bash
+git add src/domain/language.ts src/main/language-provider.ts resources/win-input-language.ps1 src/main/follow-controller.ts src/main/index.ts src/main/tray.ts tests/domain/language.test.ts tests/main/language-provider.test.ts tests/renderer tests/main
+git commit -m "feat: add safe automatic A and Han providers"
+```
+
+### Task 14: Enforce runtime privacy and process security
 
 **Files:**
 - Modify: `src/main/overlay-window.ts`
@@ -1842,7 +2158,7 @@ git add src/main/overlay-window.ts tests/security package.json
 git commit -m "test: enforce Followmeow privacy boundaries"
 ```
 
-### Task 14: Add icons, Electron Builder configuration, and four-arch CI
+### Task 15: Add icons, Electron Builder configuration, and four-arch CI
 
 **Files:**
 - Modify: `package.json`
@@ -2009,7 +2325,7 @@ git add package.json build scripts/verify-macos-architecture.mjs scripts/verify-
 git commit -m "ci: package Followmeow for four architectures"
 ```
 
-### Task 15: Complete attribution, user docs, and the release gate
+### Task 16: Complete attribution, user docs, and the release gate
 
 **Files:**
 - Modify: `scripts/copy-static.mjs`
@@ -2043,8 +2359,9 @@ describe("project notices", () => {
 
   it("states the manual language limitation and permission boundary", () => {
     const privacy = readFileSync("PRIVACY.md", "utf8");
-    expect(privacy).toContain("manual");
-    expect(privacy).toContain("does not detect the active keyboard input source");
+    expect(privacy).toContain("automatic");
+    expect(privacy).toContain("manual override");
+    expect(privacy).toContain("does not read field text or key events");
     expect(privacy).toContain("Accessibility");
     expect(privacy).toContain("no network");
   });
@@ -2068,8 +2385,8 @@ not exist.
 
 1. macOS 13+/Windows 11 and the four supported architectures;
 2. install and tray controls;
-3. default hidden/manual `A`/`한` state;
-4. no automatic language detection;
+3. default automatic A/한 with explicit Hidden/A/한 manual override;
+4. exact automatic layout/IME inputs and unknown-to-hidden fallback;
 5. required local permissions (none);
 6. clean build/package commands;
 7. GPL-2.0-only license;
@@ -2137,27 +2454,29 @@ git commit -m "docs: complete Followmeow release notices"
 
 | Specification area | Implementing tasks |
 |---|---|
-| Scope and non-goals | Tasks 2-15; privacy boundary in Task 13 |
-| UX states and stale behavior | Tasks 2, 4, 5, 10, 11 |
-| Animation/follow model | Tasks 3, 5, 10 |
+| Scope and non-goals | Tasks 2-16; privacy boundary in Task 14 |
+| UX states and stale behavior | Tasks 2, 4, 5, 10, 11, 13 |
+| Animation/follow model | Tasks 3, 5, 10, 13 |
 | Platform APIs and fallbacks | Tasks 9, 11, 12, 14 |
-| Settings and tray behavior | Tasks 6, 12 |
-| Permissions, privacy, and security | Tasks 8, 11, 13, 15 |
+| Automatic A/한 providers | Task 13 |
+| Settings and tray behavior | Tasks 6, 12, 13 |
+| Permissions, privacy, and security | Tasks 8, 11, 13, 14, 16 |
 | Approved cat art | Task 7 |
 | Electron main/renderer boundary | Tasks 8-12 |
-| Unit and integration tests | Tasks 1-13 and 15 |
-| macOS/Windows x64/arm64 packaging | Task 14 |
-| License and attribution | Tasks 7, 14, 15 |
-| Acceptance criteria and platform matrix | Task 15 release checklist plus Task 14 CI |
+| Unit and integration tests | Tasks 1-16 |
+| macOS/Windows x64/arm64 packaging | Task 15 |
+| License and attribution | Tasks 7, 15, 16 |
+| Acceptance criteria and platform matrix | Task 16 release checklist plus Task 15 CI |
 
 ## Placeholder and name-consistency review
 
 - Public names are fixed: `AppSettings`, `CursorSample`, `RenderFrame`,
-  `MotionState`, `LanguageGlyph`, `HideReason`, `OVERLAY_SIZE`,
+  `MotionState`, `LanguageGlyph`, `LanguageMode`, `HideReason`, `OVERLAY_SIZE`,
   `STALE_CURSOR_MS`, `FollowController`, `CursorSampler`, `OverlayWindow`, and
   `SettingsStore`.
 - Motion names are always `idle`, `walk`, `run`, and `turn`.
-- Glyph names are always `hidden`, `A`, and `한`; no `automatic` value exists.
+- Rendered glyph names are always `hidden`, `A`, and `한`; `automatic` exists
+  only in the `LanguageMode` setting and never reaches the renderer as a glyph.
 - All coordinates are DIP and all timing is monotonic milliseconds unless
   `SpringFollower.step` explicitly accepts seconds.
 - Every package target has a matching command and verifier.
