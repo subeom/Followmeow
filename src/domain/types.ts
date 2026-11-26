@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 subeomlee
+// SPDX-License-Identifier: GPL-2.0-only
+
 export const OVERLAY_SIZE = Object.freeze({ width: 144, height: 96 });
 export const DISPLAY_MARGIN_DIP = 8;
 export const STALE_CURSOR_MS = 250;

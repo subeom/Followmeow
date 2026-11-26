@@ -1,0 +1,13 @@
+Followmeow
+Copyright (c) 2026 subeomlee
+
+Followmeow is licensed under GPL-2.0-only. See LICENSE.
+
+The original face-free side-profile cat artwork and visual direction were
+created for this project by subeomlee. The approved source plates are preserved
+unchanged at artwork/source/cat-poses.svg, artwork/source/05-turn.svg, and
+artwork/visual-spec.md. Source hashes are recorded in artwork/source-manifest.json.
+Normalized runtime assets preserve the approved proportions and palette. They
+do not use or recreate GitHub/Octocat geometry.
+
+Deskflow behavior attribution appears in THIRD_PARTY_NOTICES.md.

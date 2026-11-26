@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 subeomlee
+// SPDX-License-Identifier: GPL-2.0-only
+
 import { open, readdir } from "node:fs/promises";
 import { join } from "node:path";
 

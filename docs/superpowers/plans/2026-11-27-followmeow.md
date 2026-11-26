@@ -941,6 +941,7 @@ git commit -m "feat: add validated local settings"
 
 **Files:**
 - Copy: `artwork/source/cat-poses.svg`
+- Copy: `artwork/source/05-turn.svg`
 - Copy: `artwork/visual-spec.md`
 - Create: `artwork/source-manifest.json`
 - Create: `scripts/normalize-cat-art.mjs`
@@ -960,13 +961,14 @@ Run:
 ```bash
 mkdir -p artwork/source
 cp '/Users/subeomlee/.copilot/session-state/9825e0bd-8139-47fe-b559-07f6b89986e4/files/cat-art/cat-poses.svg' artwork/source/cat-poses.svg
+cp '/Users/subeomlee/.copilot/session-state/9825e0bd-8139-47fe-b559-07f6b89986e4/files/cat-art/05-turn.svg' artwork/source/05-turn.svg
 cp '/Users/subeomlee/.copilot/session-state/9825e0bd-8139-47fe-b559-07f6b89986e4/files/cat-art/visual-spec.md' artwork/visual-spec.md
-sha256sum artwork/source/cat-poses.svg artwork/visual-spec.md
+sha256sum artwork/source/cat-poses.svg artwork/source/05-turn.svg artwork/visual-spec.md
 ```
 
-Record the two printed lowercase hashes in `artwork/source-manifest.json` with
-keys `catPosesSha256` and `visualSpecSha256`. Add this test before runtime
-assets exist:
+Record the three printed lowercase hashes in `artwork/source-manifest.json`
+with keys `catPosesSha256`, `turnSha256`, and `visualSpecSha256`. Add this test
+before runtime assets exist:
 
 ```ts
 import { createHash } from "node:crypto";
@@ -988,6 +990,7 @@ describe("approved cat artwork", () => {
     const digest = (path: string) =>
       createHash("sha256").update(readFileSync(path)).digest("hex");
     expect(digest("artwork/source/cat-poses.svg")).toBe(manifest.catPosesSha256);
+    expect(digest("artwork/source/05-turn.svg")).toBe(manifest.turnSha256);
     expect(digest("artwork/visual-spec.md")).toBe(manifest.visualSpecSha256);
   });
 
@@ -1016,14 +1019,14 @@ Expected: FAIL because the normalized six runtime assets do not exist.
 - [ ] **Step 3: Normalize the approved source without changing its geometry**
 
 Create `scripts/normalize-cat-art.mjs`. The script must parse
-`artwork/source/cat-poses.svg`, select the six approved pose groups by these
-exact normalized IDs: `cat-idle`, `cat-walk-1`, `cat-walk-2`, `cat-run-1`,
-`cat-run-2`, `cat-turn`, wrap each group's original path/style nodes in a new
-standalone `<svg>` with the source `viewBox`, reject external `<image>` or
-`href` references, and write the six files under `src/renderer/assets`.
-The approved source copy is immutable; the normalizer exits non-zero if any of
-the six normalized IDs is absent or duplicated. It never edits
-`artwork/source/cat-poses.svg`, so the source hash remains stable. Add
+`artwork/source/cat-poses.svg`, resolve the approved `sit`, `walk-reach`,
+`walk-pass`, `run-air`, and `run-land` definitions, and wrap each with the
+shared approved definitions in a standalone transparent SVG. It extracts the
+hero pose from `artwork/source/05-turn.svg`, removes only its embedded A marker
+and review scene wrapper, and writes it as `cat-turn.svg`. It rejects external
+`<image>` or remote `href` references. Both source files are immutable; the
+normalizer exits non-zero if a required source group is absent and never edits
+either source plate, so all three source hashes remain stable. Add
 `art:normalize` to `package.json`:
 
 ```json

@@ -23,8 +23,13 @@
     "verify:win:x64": "node scripts/verify-pe-architecture.mjs x64",
     "verify:win:arm64": "node scripts/verify-pe-architecture.mjs arm64"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "electron",
+    "cursor",
+    "cat",
+    "desktop"
+  ],
+  "author": "subeomlee",
   "license": "GPL-2.0-only",
   "type": "commonjs",
   "build": {

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 subeomlee
+// SPDX-License-Identifier: GPL-2.0-only
+
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 
 const artworkRoot = new URL("../artwork/source/", import.meta.url);

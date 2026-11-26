@@ -267,10 +267,11 @@ filenames:
 - `src/renderer/assets/cat-run-2.svg`
 - `src/renderer/assets/cat-turn.svg`
 
-The source `cat-poses.svg` is also retained at
-`artwork/source/cat-poses.svg`, and a copy of the approved source visual
-specification is retained at `artwork/visual-spec.md`. Runtime assets must be
-traceable to those two inputs.
+The approved `cat-poses.svg` and turn plate are retained unchanged at
+`artwork/source/cat-poses.svg` and `artwork/source/05-turn.svg`; the visual
+specification is retained at `artwork/visual-spec.md`. SHA-256 hashes for all
+three inputs are recorded in `artwork/source-manifest.json`. Runtime assets
+must remain traceable to those inputs.
 
 The renderer alternates walk/run assets by phase, uses the turn asset during
 the `turn` state, and mirrors the image horizontally from the center only when
