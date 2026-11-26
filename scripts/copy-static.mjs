@@ -8,4 +8,8 @@ await Promise.all([
     recursive: true,
     force: true,
   }),
+  cp("src/main/assets", "dist/main/assets", {
+    recursive: true,
+    force: true,
+  }),
 ]);

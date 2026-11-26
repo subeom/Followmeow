@@ -78,6 +78,10 @@ export class OverlayWindow {
     }
   }
 
+  ownsWebContents(contents: Electron.WebContents): boolean {
+    return this.window.webContents === contents;
+  }
+
   apply(frame: RenderFrame): void {
     if (!isRenderFrame(frame)) {
       throw new TypeError("overlay received an invalid render frame");
