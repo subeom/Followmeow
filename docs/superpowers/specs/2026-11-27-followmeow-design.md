@@ -255,6 +255,11 @@ The following Deskflow-derived thresholds are fixed:
 - Reduced motion: state is always `idle`; the spring jumps to the clamped
   target with no idle bob, walk cycle, run cycle, rotation, or scale animation.
 
+The controller tracks `idle`/`walk`/`run` as an independent normal-motion
+baseline. A turn is an overlay on that baseline only when reduced motion is
+off. When the 120 ms turn expires, the frame returns immediately to the current
+normal baseline; `turn` is never passed back into the baseline state machine.
+
 Rendering phase uses monotonic milliseconds. Fast motion is sampled at up to
 60 fps; idle rendering is at most 12 fps to avoid unnecessary work.
 

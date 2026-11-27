@@ -2540,6 +2540,8 @@ checkbox has evidence from native x64/arm64 hardware or a native VM.
   the new side and hide when the active display has no non-overlapping origin.
 - [x] Preserve turn evidence across zero-delta polls and subtract same-heading
   jitter instead of resetting a legitimate opposite-direction candidate.
+- [x] Keep reduced motion on the idle baseline and return to walk/run/idle at
+  the exact 120 ms turn-expiry boundary.
 - [x] Omit the unsupported Windows full-screen tray item.
 - [x] Replace broad Windows primary-language families with exact approved LCIDs.
 - [x] Run the packaged runtime smoke test in CI and release workflows.
