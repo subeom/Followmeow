@@ -127,4 +127,80 @@ describe("app lifecycle", () => {
     expect(h.login).toHaveBeenNthCalledWith(2, false);
     expect(h.store.value.launchAtLogin).toBe(false);
   });
+
+  it("serializes actions and re-reads settings for each save", async () => {
+    const h = harness();
+    const writes: Array<{
+      next: AppSettings;
+      release: () => void;
+    }> = [];
+    h.store.save.mockImplementation(
+      async (next: AppSettings) =>
+        await new Promise<void>((resolve) => {
+          writes.push({
+            next,
+            release: () => {
+              h.setValue(next);
+              resolve();
+            },
+          });
+        }),
+    );
+
+    const language = h.lifecycle.handleAction({
+      type: "set-language",
+      value: "한",
+    });
+    const speed = h.lifecycle.handleAction({
+      type: "set-speed",
+      value: 125,
+    });
+    await Promise.resolve();
+    expect(writes).toHaveLength(1);
+    expect(writes[0]?.next).toMatchObject({
+      languageMode: "한",
+      followSpeedPercent: 100,
+    });
+
+    writes[0]?.release();
+    await language;
+    await Promise.resolve();
+    expect(writes).toHaveLength(2);
+    expect(writes[1]?.next).toMatchObject({
+      languageMode: "한",
+      followSpeedPercent: 125,
+    });
+    writes[1]?.release();
+    await speed;
+    expect(h.store.value).toMatchObject({
+      languageMode: "한",
+      followSpeedPercent: 125,
+    });
+  });
+
+  it("does not apply a delayed save after quit destroys runtime objects", async () => {
+    const h = harness();
+    let release: (() => void) | undefined;
+    h.store.save.mockImplementation(
+      async (next: AppSettings) =>
+        await new Promise<void>((resolve) => {
+          release = () => {
+            h.setValue(next);
+            resolve();
+          };
+        }),
+    );
+
+    const pending = h.lifecycle.handleAction({
+      type: "set-speed",
+      value: 150,
+    });
+    h.lifecycle.quit();
+    release?.();
+    await pending;
+
+    expect(h.controller.setSettings).not.toHaveBeenCalled();
+    expect(h.overlay.setFullScreenVisibility).not.toHaveBeenCalled();
+    expect(h.tray.update).not.toHaveBeenCalled();
+  });
 });

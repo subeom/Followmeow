@@ -63,6 +63,7 @@ export class AppLifecycle {
   private quitting = false;
   private samplerRunning = false;
   private providerRunning = false;
+  private actionQueue: Promise<void> = Promise.resolve();
 
   constructor(private readonly dependencies: LifecycleDependencies) {}
 
@@ -83,32 +84,44 @@ export class AppLifecycle {
     this.startRuntimeForSettings();
   }
 
-  async handleAction(action: TrayAction): Promise<void> {
+  handleAction(action: TrayAction): Promise<void> {
     if (this.quitting) {
-      return;
+      return Promise.resolve();
     }
     if (action.type === "quit") {
       this.quit();
-      return;
+      return Promise.resolve();
     }
     if (action.type === "about") {
       this.dependencies.openAbout();
-      return;
+      return Promise.resolve();
     }
 
-    const previous = this.dependencies.store.value;
-    const next = this.nextSettings(previous, action);
-    if (action.type === "set-launch-at-login") {
-      await this.updateLoginSetting(previous, next);
-      return;
-    }
-    try {
-      await this.dependencies.store.save(next);
-    } catch {
-      this.dependencies.tray.showError("settings-save-failed");
-      return;
-    }
-    this.applySavedSettings(next);
+    const transaction = async () => {
+      if (this.quitting) {
+        return;
+      }
+      const previous = this.dependencies.store.value;
+      const next = this.nextSettings(previous, action);
+      if (action.type === "set-launch-at-login") {
+        await this.updateLoginSetting(previous, next);
+        return;
+      }
+      try {
+        await this.dependencies.store.save(next);
+      } catch {
+        if (!this.quitting) {
+          this.dependencies.tray.showError("settings-save-failed");
+        }
+        return;
+      }
+      if (!this.quitting) {
+        this.applySavedSettings(next);
+      }
+    };
+    const pending = this.actionQueue.then(transaction, transaction);
+    this.actionQueue = pending.catch(() => {});
+    return pending;
   }
 
   quit(): void {
@@ -156,7 +169,9 @@ export class AppLifecycle {
     try {
       this.dependencies.setLoginItem(next.launchAtLogin);
     } catch {
-      this.dependencies.tray.showError("login-item-failed");
+      if (!this.quitting) {
+        this.dependencies.tray.showError("login-item-failed");
+      }
       return;
     }
     try {
@@ -165,16 +180,25 @@ export class AppLifecycle {
       try {
         this.dependencies.setLoginItem(previous.launchAtLogin);
       } catch {
-        this.dependencies.tray.showError("login-item-failed");
+        if (!this.quitting) {
+          this.dependencies.tray.showError("login-item-failed");
+        }
         return;
       }
-      this.dependencies.tray.showError("settings-save-failed");
+      if (!this.quitting) {
+        this.dependencies.tray.showError("settings-save-failed");
+      }
       return;
     }
-    this.applySavedSettings(next);
+    if (!this.quitting) {
+      this.applySavedSettings(next);
+    }
   }
 
   private applySavedSettings(settings: AppSettings): void {
+    if (this.quitting) {
+      return;
+    }
     this.dependencies.controller.setSettings(settings);
     this.dependencies.controller.setReducedMotion?.(
       settings.motionPolicy === "reduced" ||
@@ -213,7 +237,9 @@ export class AppLifecycle {
       this.dependencies.languageProvider.reset();
       void this.dependencies.languageProvider.start().catch(() => {
         this.providerRunning = false;
-        this.dependencies.tray.showError("language-provider-failed");
+        if (!this.quitting) {
+          this.dependencies.tray.showError("language-provider-failed");
+        }
       });
     } else if (
       this.dependencies.store.value.languageMode !== "automatic" &&
