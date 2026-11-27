@@ -2,7 +2,9 @@
 
 Followmeow is a tray-only cursor companion for macOS 13+ and Windows 11. It
 supports x64 and arm64, follows the cursor across displays, stays transparent
-and click-through, and presents an original face-free side-profile cat.
+and click-through, and presents an original face-free side-profile cat. The
+Release app icon uses an original 1024 x 1024 metaphysical cat/orbit composition;
+the source and license provenance are preserved under `artwork/icon/`.
 
 ## Torso language label
 

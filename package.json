@@ -21,7 +21,9 @@
     "verify:mac:x64": "node scripts/verify-macos-architecture.mjs x64",
     "verify:mac:arm64": "node scripts/verify-macos-architecture.mjs arm64",
     "verify:win:x64": "node scripts/verify-pe-architecture.mjs x64",
-    "verify:win:arm64": "node scripts/verify-pe-architecture.mjs arm64"
+    "verify:win:arm64": "node scripts/verify-pe-architecture.mjs arm64",
+    "verify:icons:mac": "node scripts/verify-packaged-icons.mjs mac",
+    "verify:icons:win": "node scripts/verify-packaged-icons.mjs win"
   },
   "keywords": [
     "electron",

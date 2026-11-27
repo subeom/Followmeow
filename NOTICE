@@ -10,4 +10,8 @@ artwork/visual-spec.md. Source hashes are recorded in artwork/source-manifest.js
 Normalized runtime assets preserve the approved proportions and palette. They
 do not use or recreate GitHub/Octocat geometry.
 
+The original Followmeow application icon is preserved at
+artwork/icon/followmeow-metaphysical-icon.png and copied byte-for-byte to
+build/icon.png. It is licensed with the project under GPL-2.0-only.
+
 Deskflow behavior attribution appears in THIRD_PARTY_NOTICES.md.

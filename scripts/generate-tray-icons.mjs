@@ -123,25 +123,6 @@ function crc32(buffer) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-function scale(buffer, factor) {
-  const width = WIDTH * factor;
-  const height = HEIGHT * factor;
-  const scaled = Buffer.alloc(width * height * 4);
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const source =
-        (Math.floor(y / factor) * WIDTH + Math.floor(x / factor)) * 4;
-      buffer.copy(
-        scaled,
-        (y * width + x) * 4,
-        source,
-        source + 4,
-      );
-    }
-  }
-  return scaled;
-}
-
 function png(buffer, width = WIDTH, height = HEIGHT) {
   const header = Buffer.alloc(13);
   header.writeUInt32BE(width, 0);
@@ -168,9 +149,7 @@ function png(buffer, width = WIDTH, height = HEIGHT) {
 }
 
 await mkdir("src/main/assets", { recursive: true });
-await mkdir("build", { recursive: true });
 await Promise.all([
   writeFile("src/main/assets/tray.png", png(cat(false))),
   writeFile("src/main/assets/tray-disabled.png", png(cat(true))),
-  writeFile("build/icon.png", png(scale(cat(false), 16), 512, 512)),
 ]);
