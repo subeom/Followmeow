@@ -21,6 +21,7 @@ export type ProcessRunner = (
   command: string,
   args: readonly string[],
   timeoutMs: number,
+  signal: AbortSignal,
 ) => Promise<ProcessResult>;
 export type ProviderError =
   | "provider-exit"
@@ -35,6 +36,7 @@ export const runProcess: ProcessRunner = (
   command,
   args,
   timeoutMs,
+  signal,
 ) =>
   new Promise((resolve) => {
     execFile(
@@ -44,12 +46,14 @@ export const runProcess: ProcessRunner = (
         encoding: "utf8",
         maxBuffer: 16 * 1024,
         shell: false,
+        signal,
         timeout: timeoutMs,
         windowsHide: true,
       },
       (error, stdout, stderr) => {
         const timedOut =
           error !== null &&
+          !signal.aborted &&
           "killed" in error &&
           error.killed === true &&
           (error.signal === "SIGTERM" || error.code === null);
@@ -71,9 +75,10 @@ export const runProcess: ProcessRunner = (
 export class LanguageProvider {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private stopped = true;
-  private polling = false;
+  private generation = 0;
   private failureIndex = 0;
   private lastError: ProviderError | null = null;
+  private readonly controllers = new Map<number, AbortController>();
 
   constructor(
     private readonly platform: PlatformName,
@@ -88,11 +93,12 @@ export class LanguageProvider {
       return;
     }
     this.stopped = false;
-    await this.runAndSchedule();
+    const generation = ++this.generation;
+    await this.runAndSchedule(generation);
   }
 
   async poll(): Promise<void> {
-    await this.runOnce();
+    await this.runOnce(this.generation);
   }
 
   reset(): void {
@@ -103,15 +109,19 @@ export class LanguageProvider {
 
   stop(): void {
     this.stopped = true;
+    this.generation += 1;
     if (this.timer !== null) {
       clearTimeout(this.timer);
       this.timer = null;
     }
+    for (const controller of this.controllers.values()) {
+      controller.abort();
+    }
   }
 
-  private async runAndSchedule(): Promise<void> {
-    const success = await this.runOnce();
-    if (this.stopped) {
+  private async runAndSchedule(generation: number): Promise<void> {
+    const success = await this.runOnce(generation);
+    if (this.stopped || generation !== this.generation) {
       return;
     }
     const delay = success
@@ -121,15 +131,16 @@ export class LanguageProvider {
         ] ?? 30_000);
     this.timer = setTimeout(() => {
       this.timer = null;
-      void this.runAndSchedule();
+      void this.runAndSchedule(generation);
     }, delay);
   }
 
-  private async runOnce(): Promise<boolean> {
-    if (this.polling) {
+  private async runOnce(generation: number): Promise<boolean> {
+    if (this.controllers.has(generation)) {
       return false;
     }
-    this.polling = true;
+    const controller = new AbortController();
+    this.controllers.set(generation, controller);
     try {
       const invocation =
         this.platform === "darwin"
@@ -159,9 +170,16 @@ export class LanguageProvider {
           invocation.command,
           invocation.args,
           PROCESS_TIMEOUT_MS,
+          controller.signal,
         );
       } catch {
+        if (generation !== this.generation) {
+          return false;
+        }
         this.failed("provider-exit");
+        return false;
+      }
+      if (generation !== this.generation) {
         return false;
       }
       if (result.timedOut) {
@@ -187,7 +205,9 @@ export class LanguageProvider {
       this.onState({ glyph, observedAtMs: performance.now() });
       return true;
     } finally {
-      this.polling = false;
+      if (this.controllers.get(generation) === controller) {
+        this.controllers.delete(generation);
+      }
     }
   }
 
