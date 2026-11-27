@@ -1460,10 +1460,11 @@ The controller keeps no DOM/Electron dependency. A valid sample passes through
 and motion state. It consumes at most `MAX_FRAME_STEPS` fixed steps, resets on a
 display-generation, stale-cursor, or screen-unknown discontinuity, and emits
 exactly one ordered frame per `tick` from a controller-owned output sequence.
-A 12 DIP accumulated opposite-direction candidate commits facing and heading;
-reversal jitter below the accumulated threshold preserves the current facing,
-including while a turn is active. A manually hidden glyph and a hide frame never
-preserve prior glyph or bounds data.
+A 12 DIP accumulated opposite-direction candidate commits facing and heading.
+Zero horizontal delta preserves pending progress; movement toward committed
+heading subtracts from it; alternating sub-threshold jitter preserves the
+current facing, including while a turn is active. A manually hidden glyph and
+a hide frame never preserve prior glyph or bounds data.
 `FollowController.setAutomaticLanguage` is added in Task 13; before that task,
 automatic mode resolves to `hidden`, while manual modes resolve immediately.
 
@@ -2537,6 +2538,8 @@ checkbox has evidence from native x64/arm64 hardware or a native VM.
 - [x] Apply 12 DIP facing hysteresis before committing a turn.
 - [x] Keep all committed-turn and edge frames cursor-clear; atomically place on
   the new side and hide when the active display has no non-overlapping origin.
+- [x] Preserve turn evidence across zero-delta polls and subtract same-heading
+  jitter instead of resetting a legitimate opposite-direction candidate.
 - [x] Omit the unsupported Windows full-screen tray item.
 - [x] Replace broad Windows primary-language families with exact approved LCIDs.
 - [x] Run the packaged runtime smoke test in CI and release workflows.

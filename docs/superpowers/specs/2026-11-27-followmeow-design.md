@@ -195,8 +195,10 @@ For each sample:
 4. If none contains it, emit a hide frame and reset follower position.
 5. Compute a desired follower anchor behind the cursor using the last committed
    heading. A horizontal reversal changes facing and heading only after the
-   accumulated 12 DIP turn threshold is crossed; 1 DIP or repeated sub-threshold
-   movement keeps the prior facing until the accumulated candidate commits.
+   accumulated    12 DIP turn threshold is crossed. Zero horizontal delta is no direction
+   evidence and preserves the pending candidate. Movement toward the committed
+   heading subtracts from that candidate instead of resetting it, while a
+   1 DIP or repeated sub-threshold alternating jitter never changes facing.
 6. Clamp the complete 144 x 96 DIP overlay bounds inside the selected display
    with an 8 DIP safety margin.
 7. Apply the result to the overlay and emit only serializable values.
