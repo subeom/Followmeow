@@ -46,6 +46,10 @@ describe("packaging", () => {
     expect(png.readUInt32BE(20)).toBe(512);
   });
 
+  it("packages only English and Korean Electron locales", () => {
+    expect(manifest.build.electronLanguages).toEqual(["en", "ko"]);
+  });
+
   it("runs the packaged runtime smoke test in CI and release packaging", () => {
     for (const path of [
       ".github/workflows/ci.yml",

@@ -40,6 +40,10 @@
     "appId": "com.subeom.Followmeow",
     "productName": "Followmeow",
     "asar": true,
+    "electronLanguages": [
+      "en",
+      "ko"
+    ],
     "directories": {
       "output": "release"
     },

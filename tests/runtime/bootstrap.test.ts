@@ -17,7 +17,7 @@ beforeAll(() => {
 });
 
 describe("packaged browser runtime", () => {
-  it("loads the renderer bundle without CommonJS globals and accepts a frame", () => {
+  it("loads the renderer bundle without CommonJS globals and accepts a frame", async () => {
     const html = readFileSync("dist/renderer/index.html", "utf8");
     document.open();
     document.write(html);
@@ -90,9 +90,17 @@ describe("packaged browser runtime", () => {
     });
     expect(imageWrites).toBe(1);
     onFrame?.({
+      ...firstFrame,
+      sequence: 3,
+      observedAtMs: 3,
+      glyph: "한",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 130));
+    expect(document.querySelector("#followmeow-glyph")?.textContent).toBe("한");
+    onFrame?.({
       kind: "hide",
-      sequence: 1,
-      observedAtMs: 2,
+      sequence: 3,
+      observedAtMs: 4,
       reason: "stale-cursor",
     });
     expect(
