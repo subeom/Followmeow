@@ -1460,9 +1460,10 @@ The controller keeps no DOM/Electron dependency. A valid sample passes through
 and motion state. It consumes at most `MAX_FRAME_STEPS` fixed steps, resets on a
 display-generation, stale-cursor, or screen-unknown discontinuity, and emits
 exactly one ordered frame per `tick` from a controller-owned output sequence.
-A 12 DIP reversal commits facing and heading; smaller reversal jitter preserves
-the current facing. A manually hidden glyph and a hide frame never preserve
-prior glyph or bounds data.
+A 12 DIP accumulated opposite-direction candidate commits facing and heading;
+reversal jitter below the accumulated threshold preserves the current facing,
+including while a turn is active. A manually hidden glyph and a hide frame never
+preserve prior glyph or bounds data.
 `FollowController.setAutomaticLanguage` is added in Task 13; before that task,
 automatic mode resolves to `hidden`, while manual modes resolve immediately.
 
