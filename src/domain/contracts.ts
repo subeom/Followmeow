@@ -55,7 +55,7 @@ export function isRect(value: unknown): value is Rect {
   );
 }
 
-function isDisplaySnapshot(value: unknown): value is DisplaySnapshot {
+export function isDisplaySnapshot(value: unknown): value is DisplaySnapshot {
   return (
     isRecord(value) &&
     isNonNegativeInteger(value.id) &&

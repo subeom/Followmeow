@@ -163,4 +163,67 @@ describe("cursor sampler", () => {
     expect(samples).toHaveLength(1);
     sampler.stop();
   });
+
+  it("refreshes changed topology after a stop/start cycle", () => {
+    let now = 1_000;
+    let displays = [
+      { id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 } },
+    ];
+    const samples: any[] = [];
+    const sampler = new CursorSampler(
+      {
+        cursor: () => ({ x: 100, y: 200 }),
+        displays: () => displays,
+        now: () => now,
+      },
+      (sample) => samples.push(sample),
+      vi.fn(),
+    );
+
+    sampler.start();
+    sampler.stop();
+    displays = [
+      { id: 2, bounds: { x: -1600, y: 0, width: 1600, height: 900 } },
+    ];
+    sampler.noteDisplayChange();
+    now = 2_000;
+    sampler.start();
+
+    expect(samples.at(-1).displays).toEqual(displays);
+    expect(samples.at(-1).displayGeneration).toBe(1);
+    sampler.stop();
+  });
+
+  it("does not retain an empty topology and retries it", () => {
+    let now = 1_000;
+    let displays: Array<{
+      id: number;
+      bounds: { x: number; y: number; width: number; height: number };
+    }> = [];
+    const readDisplays = vi.fn(() => displays);
+    const samples: unknown[] = [];
+    const sampler = new CursorSampler(
+      {
+        cursor: () => ({ x: 100, y: 200 }),
+        displays: readDisplays,
+        now: () => now,
+      },
+      (sample) => samples.push(sample),
+      vi.fn(),
+    );
+
+    sampler.start();
+    now = 1_999;
+    vi.advanceTimersByTime(16);
+    expect(readDisplays).toHaveBeenCalledTimes(1);
+
+    displays = [
+      { id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 } },
+    ];
+    now = 2_000;
+    vi.advanceTimersByTime(16);
+    expect(readDisplays).toHaveBeenCalledTimes(2);
+    expect(samples).toHaveLength(1);
+    sampler.stop();
+  });
 });

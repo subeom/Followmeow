@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 subeomlee
 // SPDX-License-Identifier: GPL-2.0-only
 
-import { isCursorSample } from "../domain/contracts";
+import { isCursorSample, isDisplaySnapshot } from "../domain/contracts";
 import {
   SAMPLE_INTERVAL_MS,
   type CursorSample,
@@ -48,6 +48,8 @@ export class CursorSampler {
 
   noteDisplayChange(): void {
     this.displayGeneration += 1;
+    this.displays = null;
+    this.nextDisplayRefreshAtMs = 0;
     if (this.timer !== null) {
       try {
         this.refreshDisplays(this.source.now());
@@ -99,7 +101,11 @@ export class CursorSampler {
   private refreshDisplays(nowMs: number): void {
     try {
       this.displays = this.source.displays();
-      if (!Array.isArray(this.displays)) {
+      if (
+        !Array.isArray(this.displays) ||
+        this.displays.length === 0 ||
+        !this.displays.every(isDisplaySnapshot)
+      ) {
         this.displays = null;
         this.nextDisplayRefreshAtMs = nowMs + 1_000;
         this.reportInvalid("screen-unknown");
