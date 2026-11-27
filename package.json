@@ -9,7 +9,8 @@
     "art:normalize": "node scripts/normalize-cat-art.mjs",
     "icons:generate": "node scripts/generate-tray-icons.mjs",
     "test:watch": "vitest",
-    "build": "tsc -p tsconfig.json && node scripts/copy-static.mjs",
+    "build": "tsc -p tsconfig.json && node scripts/bundle-runtime.mjs && node scripts/copy-static.mjs",
+    "test:runtime": "npm run build && vitest run --run tests/runtime/bootstrap.test.ts",
     "postinstall": "node scripts/ensure-electron.mjs",
     "start": "npm run build && electron .",
     "package:mac:x64": "electron-builder --mac --x64 --publish never",
@@ -82,6 +83,7 @@
     "@types/node": "^22.15.30",
     "electron": "^37.2.3",
     "electron-builder": "^26.0.12",
+    "esbuild": "^0.28.2",
     "jsdom": "^26.1.0",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"

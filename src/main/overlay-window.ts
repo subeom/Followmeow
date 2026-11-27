@@ -30,7 +30,7 @@ export const OVERLAY_BROWSER_WINDOW_OPTIONS: BrowserWindowConstructorOptions = {
     nodeIntegration: false,
     nodeIntegrationInWorker: false,
     webSecurity: true,
-    preload: join(__dirname, "../preload/index.js"),
+    preload: join(__dirname, "../preload/index.bundle.cjs"),
   },
 };
 
