@@ -202,8 +202,10 @@ For each sample:
 7. Apply the result to the overlay and emit only serializable values.
 
 The follower uses a 34 DIP separation between the cursor and the leading edge
-of the cat. It moves behind the cursor, never covers the cursor, except where
-physical display clamping makes the requested separation impossible.
+of the cat. If display clamping would contain the cursor, it first selects a
+collision-free side on the active display, then falls back to zero-gap contact.
+If no side fits, the frame hides fail-closed. A committed turn atomically
+initializes the follower on the new side; it never springs across the cursor.
 
 ### 6.2 Fixed-step spring
 

@@ -2535,6 +2535,8 @@ checkbox has evidence from native x64/arm64 hardware or a native VM.
 - [x] Serialize tray setting transactions and prevent post-quit application.
 - [x] Reset follower, heading, and turn state at stale/screen discontinuities.
 - [x] Apply 12 DIP facing hysteresis before committing a turn.
+- [x] Keep all committed-turn and edge frames cursor-clear; atomically place on
+  the new side and hide when the active display has no non-overlapping origin.
 - [x] Omit the unsupported Windows full-screen tray item.
 - [x] Replace broad Windows primary-language families with exact approved LCIDs.
 - [x] Run the packaged runtime smoke test in CI and release workflows.
