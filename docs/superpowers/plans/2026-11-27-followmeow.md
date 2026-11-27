@@ -2540,5 +2540,5 @@ checkbox has evidence from native x64/arm64 hardware or a native VM.
 - [x] Omit the unsupported Windows full-screen tray item.
 - [x] Replace broad Windows primary-language families with exact approved LCIDs.
 - [x] Run the packaged runtime smoke test in CI and release workflows.
-- [ ] Rerun all four package/architecture jobs and complete an independent
+- [x] Rerun all four package/architecture jobs and complete an independent
   release-blocker code review with no remaining blocker.
