@@ -621,6 +621,11 @@ they define regression baselines rather than guarantees:
    wake-ups/CPU rather than baseline Electron memory.
 5. CI uploads exact final ZIP/EXE files rather than `release/`. Pre-optimization
    input was 5.16x the final artifact bytes for macOS and 2.48x for Windows.
+   The exact optimized artifacts are about 110.3 MB (mac x64), 105.2 MB (mac
+   arm64), 189.4 MB (Windows x64), and 189.8 MB (Windows arm64). Upload input
+   fell by about 80.6% on macOS and 63.2% on Windows. In the exact-HEAD CI run,
+   upload steps fell to 7-8 s, versus the audited 38-44 s macOS and 15-18 s
+   Windows baselines.
 6. `npm run test:runtime` validates an existing build; CI builds once.
    `npm run test:runtime:clean` is the clean-clone build-plus-smoke command.
 7. Electron locale filtering is observable mainly on Windows: the locale
