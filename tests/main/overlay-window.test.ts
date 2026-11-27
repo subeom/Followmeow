@@ -88,4 +88,33 @@ describe("overlay window", () => {
     expect(window.hide).toHaveBeenCalledOnce();
     expect(window.webContents.send).toHaveBeenCalledTimes(2);
   });
+
+  it("does not repeat identical positioning, IPC, or show calls", () => {
+    const window = fakeWindow();
+    const overlay = new OverlayWindow(
+      () => window as never,
+      "/app/dist/renderer/index.html",
+    );
+    const base = {
+      kind: "show" as const,
+      sequence: 1,
+      observedAtMs: 1,
+      bounds: { x: 100.2, y: 200.4, width: 144, height: 96 },
+      motion: "idle" as const,
+      facesRight: true,
+      glyph: "hidden" as const,
+      phaseMs: 0,
+    };
+    overlay.apply(base);
+    overlay.apply({
+      ...base,
+      sequence: 2,
+      observedAtMs: 2,
+      bounds: { x: 100.4, y: 200.49, width: 144, height: 96 },
+    });
+
+    expect(window.setBounds).toHaveBeenCalledOnce();
+    expect(window.showInactive).toHaveBeenCalledOnce();
+    expect(window.webContents.send).toHaveBeenCalledOnce();
+  });
 });

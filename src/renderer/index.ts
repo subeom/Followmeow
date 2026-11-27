@@ -23,6 +23,7 @@ if (canvas === null || cat === null || glyph === null) {
 }
 
 let lastSequence = -1;
+let lastVisualKey: string | null = null;
 const glyphTransition = new GlyphTransition(
   glyph,
   window.matchMedia("(prefers-reduced-motion: reduce)").matches,
@@ -34,6 +35,16 @@ window.followmeow.onFrame((frame) => {
   lastSequence = frame.sequence;
 
   const model = toViewModel(frame);
+  const visualKey = [
+    model.visible ? 1 : 0,
+    model.asset,
+    model.glyph,
+    model.scaleX,
+  ].join(":");
+  if (visualKey === lastVisualKey) {
+    return;
+  }
+  lastVisualKey = visualKey;
   canvas.dataset.visible = String(model.visible);
   canvas.dataset.facing = model.scaleX === 1 ? "right" : "left";
   cat.src = model.asset;

@@ -19,6 +19,8 @@ export class CursorSampler {
   private timer: ReturnType<typeof setInterval> | null = null;
   private displayGeneration = 0;
   private sequence = 0;
+  private displays: readonly DisplaySnapshot[] | null = null;
+  private lastInvalidReason: "screen-unknown" | "stale-cursor" | null = null;
 
   constructor(
     private readonly source: CursorSource,
@@ -32,6 +34,7 @@ export class CursorSampler {
     if (this.timer !== null) {
       return;
     }
+    this.refreshDisplays();
     this.tick();
     this.timer = setInterval(() => this.tick(), SAMPLE_INTERVAL_MS);
   }
@@ -45,34 +48,61 @@ export class CursorSampler {
 
   noteDisplayChange(): void {
     this.displayGeneration += 1;
+    if (this.timer !== null) {
+      this.refreshDisplays();
+    }
   }
 
   private tick(): void {
     let cursor: Point;
-    let displays: readonly DisplaySnapshot[];
     let observedAtMs: number;
     try {
       cursor = this.source.cursor();
-      displays = this.source.displays();
       observedAtMs = this.source.now();
     } catch {
-      this.onInvalid("screen-unknown");
+      this.reportInvalid("screen-unknown");
+      return;
+    }
+    if (this.displays === null) {
+      this.reportInvalid("screen-unknown");
       return;
     }
 
     const candidate: CursorSample = {
       cursor,
-      displays,
+      displays: this.displays,
       displayGeneration: this.displayGeneration,
       observedAtMs,
       sequence: this.sequence + 1,
     };
     if (!isCursorSample(candidate)) {
-      this.onInvalid("screen-unknown");
+      this.reportInvalid("screen-unknown");
       return;
     }
 
+    this.lastInvalidReason = null;
     this.sequence = candidate.sequence;
     this.onSample(candidate);
+  }
+
+  private refreshDisplays(): void {
+    try {
+      this.displays = this.source.displays();
+      if (!Array.isArray(this.displays)) {
+        this.displays = null;
+        this.reportInvalid("screen-unknown");
+      }
+    } catch {
+      this.displays = null;
+      this.reportInvalid("screen-unknown");
+    }
+  }
+
+  private reportInvalid(reason: "screen-unknown" | "stale-cursor"): void {
+    if (this.lastInvalidReason === reason) {
+      return;
+    }
+    this.lastInvalidReason = reason;
+    this.onInvalid(reason);
   }
 }

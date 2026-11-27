@@ -37,6 +37,7 @@ export class FollowController {
   private overlayReady = false;
   private quitting = false;
   private lastEmittedSequence = 0;
+  private lastVisualKey: string | null = null;
   private previousDisplayGeneration: number | null = null;
   private lastSample: CursorSample | null = null;
   private follower: SpringFollower | null = null;
@@ -187,7 +188,7 @@ export class FollowController {
 
     const frame: RenderFrame = {
       kind: "show",
-      sequence: this.nextSequence(),
+      sequence: 0,
       observedAtMs: nowMs,
       bounds: {
         x: this.follower.position.x,
@@ -200,8 +201,7 @@ export class FollowController {
       glyph: this.resolveGlyph(nowMs),
       phaseMs: Math.max(0, nowMs - this.motionStartedAtMs),
     };
-    this.lastEmittedSequence = frame.sequence;
-    this.emit(frame);
+    this.emitVisual(frame);
   }
 
   private targetOrigin(
@@ -334,14 +334,42 @@ export class FollowController {
   }
 
   private emitHide(reason: HideReason, nowMs: number): void {
-    const sequence = this.nextSequence();
-    this.lastEmittedSequence = sequence;
-    this.emit({
+    this.emitVisual({
       kind: "hide",
-      sequence,
+      sequence: 0,
       observedAtMs: nowMs,
       reason,
     });
+  }
+
+  private emitVisual(frame: RenderFrame): void {
+    const visualKey = this.visualKey(frame);
+    if (visualKey === this.lastVisualKey) {
+      return;
+    }
+    const sequence = this.nextSequence();
+    this.lastVisualKey = visualKey;
+    this.lastEmittedSequence = sequence;
+    this.emit({ ...frame, sequence });
+  }
+
+  private visualKey(frame: RenderFrame): string {
+    if (frame.kind === "hide") {
+      return `hide:${frame.reason}`;
+    }
+    const phaseBucket =
+      frame.motion === "walk" || frame.motion === "run"
+        ? Math.floor(frame.phaseMs / 250)
+        : 0;
+    return [
+      "show",
+      Math.round(frame.bounds.x),
+      Math.round(frame.bounds.y),
+      frame.motion,
+      phaseBucket,
+      frame.facesRight ? 1 : 0,
+      frame.glyph,
+    ].join(":");
   }
 
   private nextSequence(): number {

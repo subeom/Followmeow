@@ -38,6 +38,9 @@ export class OverlayWindow {
   private readonly window: BrowserWindow;
   private readonly loadPromise: Promise<void>;
   private readyReported = false;
+  private lastShowKey: string | null = null;
+  private lastBoundsKey: string | null = null;
+  private visible = false;
 
   constructor(
     factory: (options: BrowserWindowConstructorOptions) => BrowserWindow,
@@ -98,19 +101,55 @@ export class OverlayWindow {
     }
 
     if (frame.kind === "hide") {
+      const hideKey = `hide:${frame.reason}`;
+      if (this.lastShowKey === hideKey) {
+        return;
+      }
+      this.lastShowKey = hideKey;
+      this.lastBoundsKey = null;
       this.window.webContents.send("followmeow:frame", frame);
-      this.window.hide();
+      if (this.visible) {
+        this.window.hide();
+        this.visible = false;
+      }
       return;
     }
 
-    this.window.setBounds({
-      x: Math.round(frame.bounds.x),
-      y: Math.round(frame.bounds.y),
+    const roundedX = Math.round(frame.bounds.x);
+    const roundedY = Math.round(frame.bounds.y);
+    const phaseBucket =
+      frame.motion === "walk" || frame.motion === "run"
+        ? Math.floor(frame.phaseMs / 250)
+        : 0;
+    const showKey = [
+      "show",
+      roundedX,
+      roundedY,
+      frame.motion,
+      phaseBucket,
+      frame.facesRight ? 1 : 0,
+      frame.glyph,
+    ].join(":");
+    if (showKey === this.lastShowKey) {
+      return;
+    }
+    this.lastShowKey = showKey;
+
+    const boundsKey = `${roundedX}:${roundedY}`;
+    if (boundsKey !== this.lastBoundsKey) {
+      this.window.setBounds({
+      x: roundedX,
+      y: roundedY,
       width: OVERLAY_SIZE.width,
       height: OVERLAY_SIZE.height,
-    });
+      });
+      this.lastBoundsKey = boundsKey;
+    }
     this.window.webContents.send("followmeow:frame", frame);
-    this.window.showInactive();
+    if (!this.visible) {
+      this.window.showInactive();
+      this.visible = true;
+    }
   }
 
   destroy(): void {

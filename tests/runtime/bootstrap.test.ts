@@ -56,7 +56,18 @@ describe("packaged browser runtime", () => {
     }).not.toThrow();
 
     expect(ready).toHaveBeenCalledOnce();
-    onFrame?.({
+    const cat = document.querySelector<HTMLImageElement>("#followmeow-cat");
+    let imageWrites = 0;
+    let currentSource = cat?.src ?? "";
+    Object.defineProperty(cat, "src", {
+      configurable: true,
+      get: () => currentSource,
+      set: (value: string) => {
+        imageWrites += 1;
+        currentSource = value;
+      },
+    });
+    const firstFrame = {
       kind: "show",
       sequence: 1,
       observedAtMs: 1,
@@ -65,12 +76,19 @@ describe("packaged browser runtime", () => {
       facesRight: true,
       glyph: "A",
       phaseMs: 0,
-    });
+    };
+    onFrame?.(firstFrame);
     expect(
       document.querySelector<HTMLElement>("#followmeow-canvas")?.dataset
         .visible,
     ).toBe("true");
     expect(document.querySelector("#followmeow-glyph")?.textContent).toBe("A");
+    onFrame?.({
+      ...firstFrame,
+      sequence: 2,
+      observedAtMs: 2,
+    });
+    expect(imageWrites).toBe(1);
     onFrame?.({
       kind: "hide",
       sequence: 1,

@@ -150,12 +150,10 @@ describe("follow controller", () => {
     controller.tick(sample(2, 520, 1_100), 1_100);
     expect(frames.at(-1)).toMatchObject({
       kind: "show",
-      sequence: 12,
+      sequence: 3,
       glyph: "hidden",
     });
-    expect(frames.map((frame) => frame.sequence)).toEqual(
-      Array.from({ length: 12 }, (_, index) => index + 1),
-    );
+    expect(frames.map((frame) => frame.sequence)).toEqual([1, 2, 3]);
   });
 
   it.each(["stale-cursor", "screen-unknown"] as const)(
@@ -428,5 +426,50 @@ describe("follow controller", () => {
         expect(excludesCursor(frame, { x: 480, y: 400 })).toBe(true);
       }
     }
+  });
+
+  it("emits one visual frame for 36,000 unchanged idle ticks", () => {
+    const frames: RenderFrame[] = [];
+    const controller = new FollowController(
+      { ...defaultSettings("darwin"), languageMode: "hidden" },
+      false,
+      (frame) => frames.push(frame),
+    );
+    controller.rendererReady();
+
+    for (let index = 0; index < 36_000; index += 1) {
+      controller.tick(
+        sample(index + 1, 500, 1_000 + index * 16),
+        1_000 + index * 16,
+      );
+    }
+
+    expect(frames).toHaveLength(1);
+    expect(frames[0]).toMatchObject({
+      kind: "show",
+      sequence: 1,
+      motion: "idle",
+    });
+  });
+
+  it("emits a fresh sequence after a deduplicated hide transition", () => {
+    const frames: RenderFrame[] = [];
+    const controller = new FollowController(
+      defaultSettings("darwin"),
+      false,
+      (frame) => frames.push(frame),
+    );
+    controller.rendererReady();
+    controller.tick(sample(1, 500, 1_000), 1_000);
+    controller.invalidate("screen-unknown", 1_010);
+    controller.invalidate("screen-unknown", 1_011);
+    controller.tick(sample(2, 500, 1_020), 1_020);
+
+    expect(frames.map((frame) => frame.sequence)).toEqual([1, 2, 3]);
+    expect(frames[1]).toMatchObject({
+      kind: "hide",
+      reason: "screen-unknown",
+    });
+    expect(frames[2]).toMatchObject({ kind: "show" });
   });
 });
