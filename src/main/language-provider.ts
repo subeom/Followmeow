@@ -78,6 +78,7 @@ export class LanguageProvider {
   private generation = 0;
   private failureIndex = 0;
   private lastError: ProviderError | null = null;
+  private lastEmittedGlyph: LanguageObservation["glyph"] | null = "hidden";
   private readonly controllers = new Map<number, AbortController>();
 
   constructor(
@@ -86,6 +87,7 @@ export class LanguageProvider {
     private readonly onState: (observation: LanguageObservation) => void,
     private readonly onError: (reason: ProviderError) => void,
     private readonly windowsScriptPath: string,
+    private readonly onHeartbeat?: (observedAtMs: number) => void,
   ) {}
 
   async start(): Promise<void> {
@@ -105,6 +107,7 @@ export class LanguageProvider {
     this.stop();
     this.failureIndex = 0;
     this.lastError = null;
+    this.lastEmittedGlyph = null;
   }
 
   stop(): void {
@@ -202,7 +205,12 @@ export class LanguageProvider {
 
       this.failureIndex = 0;
       this.lastError = null;
-      this.onState({ glyph, observedAtMs: performance.now() });
+      const observedAtMs = performance.now();
+      this.onHeartbeat?.(observedAtMs);
+      if (glyph !== this.lastEmittedGlyph) {
+        this.lastEmittedGlyph = glyph;
+        this.onState({ glyph, observedAtMs });
+      }
       return true;
     } finally {
       if (this.controllers.get(generation) === controller) {
@@ -218,7 +226,10 @@ export class LanguageProvider {
 
   private failed(reason: ProviderError): void {
     this.failureIndex = Math.min(this.failureIndex + 1, BACKOFF_MS.length);
-    this.onState({ glyph: "hidden", observedAtMs: performance.now() });
+    if (this.lastEmittedGlyph !== "hidden") {
+      this.lastEmittedGlyph = "hidden";
+      this.onState({ glyph: "hidden", observedAtMs: performance.now() });
+    }
     if (reason !== this.lastError) {
       this.onError(reason);
       this.lastError = reason;

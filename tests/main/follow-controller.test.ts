@@ -116,6 +116,23 @@ describe("follow controller", () => {
     expect(frames.at(-1)).toMatchObject({ kind: "show", glyph: "hidden" });
   });
 
+  it("refreshes automatic-language freshness without emitting a visual frame", () => {
+    const frames: RenderFrame[] = [];
+    const controller = new FollowController(
+      defaultSettings("darwin"),
+      false,
+      (frame) => frames.push(frame),
+    );
+    controller.rendererReady();
+    controller.setAutomaticLanguage({ glyph: "A", observedAtMs: 1_000 });
+    controller.tick(sample(1, 500, 1_016), 1_016);
+    controller.refreshAutomaticLanguage(4_000);
+    controller.tick(sample(2, 500, 4_016), 4_016);
+
+    expect(frames).toHaveLength(1);
+    expect(frames[0]).toMatchObject({ kind: "show", glyph: "A" });
+  });
+
   it("jumps to the clamped target in reduced-motion mode", () => {
     const frames: RenderFrame[] = [];
     const controller = new FollowController(

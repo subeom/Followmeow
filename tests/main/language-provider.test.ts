@@ -104,10 +104,7 @@ describe("language provider", () => {
     await provider.poll();
     await provider.poll();
 
-    expect(onState).toHaveBeenLastCalledWith({
-      glyph: "hidden",
-      observedAtMs: expect.any(Number),
-    });
+    expect(onState).not.toHaveBeenCalled();
     expect(onError).toHaveBeenCalledTimes(2);
   });
 
@@ -249,5 +246,52 @@ describe("language provider", () => {
       observedAtMs: expect.any(Number),
     });
     expect(vi.getTimerCount()).toBe(1);
+  });
+
+  it("emits state only on glyph change while heartbeating freshness", async () => {
+    const runner = vi.fn().mockResolvedValue({
+      exitCode: 0,
+      stdout: "com.apple.keylayout.ABC\n",
+      stderr: "",
+      timedOut: false,
+    });
+    const onState = vi.fn();
+    const onHeartbeat = vi.fn();
+    const provider = new LanguageProvider(
+      "darwin",
+      runner,
+      onState,
+      vi.fn(),
+      "/unused/win.ps1",
+      onHeartbeat,
+    );
+
+    await provider.poll();
+    await provider.poll();
+
+    expect(onState).toHaveBeenCalledOnce();
+    expect(onHeartbeat).toHaveBeenCalledTimes(2);
+  });
+
+  it("deduplicates repeated hidden observations across failures", async () => {
+    const runner = vi.fn().mockResolvedValue({
+      exitCode: 0,
+      stdout: "unknown.source",
+      stderr: "",
+      timedOut: false,
+    });
+    const onState = vi.fn();
+    const provider = new LanguageProvider(
+      "darwin",
+      runner,
+      onState,
+      vi.fn(),
+      "/unused/win.ps1",
+    );
+
+    await provider.poll();
+    await provider.poll();
+
+    expect(onState).toHaveBeenCalledTimes(0);
   });
 });

@@ -82,6 +82,15 @@ export class FollowController {
     throw new TypeError("invalid automatic language observation");
   }
 
+  refreshAutomaticLanguage(observedAtMs: number): void {
+    if (!Number.isFinite(observedAtMs)) {
+      throw new TypeError("invalid automatic language freshness");
+    }
+    this.automaticLanguage = this.automaticLanguage
+      ? { ...this.automaticLanguage, observedAtMs }
+      : { glyph: "hidden", observedAtMs };
+  }
+
   invalidate(reason: HideReason, nowMs: number): void {
     this.resetMotion();
     this.emitHide(reason, nowMs);

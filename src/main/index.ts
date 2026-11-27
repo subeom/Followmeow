@@ -162,6 +162,7 @@ async function bootstrap(): Promise<void> {
     (observation) => controller.setAutomaticLanguage(observation),
     () => trayPort.showError("language-provider-failed"),
     windowsLanguageScript,
+    (observedAtMs) => controller.refreshAutomaticLanguage(observedAtMs),
   );
 
   overlay = new OverlayWindow(
