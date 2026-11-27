@@ -481,6 +481,10 @@ artifacts are intentionally not used because they obscure whether each target
 was separately produced and verified. The Windows PowerShell provider is copied
 as an `extraResource` outside `app.asar`.
 
+Packaged Electron runtime locales are limited to `en` and `ko`. Runtime smoke
+coverage verifies Korean torso glyph rendering, and four-architecture packaging
+verifies that locale filtering does not break the bundle.
+
 GitHub Actions has an operating-system/architecture matrix for all four targets.
 Every job installs with `npm ci`, runs type checking and unit/integration tests,
 builds, packages the target, verifies executable/framework architecture, and
@@ -592,3 +596,35 @@ alone cannot prove input layering, DPI behavior, or full-screen behavior.
 5. **Original artwork fidelity:** The runtime pose set is derived from external
    approved source files. Mitigation: preserve source bytes, record SHA-256
    hashes, and add structure/snapshot tests for each normalized pose.
+
+## 17. Optimization evidence
+
+The following measurements were collected from the optimized implementation;
+they define regression baselines rather than guarantees:
+
+1. A deterministic 36,000-sample unchanged-idle run emits one visual frame,
+   performs one overlay IPC call, and performs one overlay positioning/show.
+   Cursor sampling remains at 16 ms, but sequence and timestamps do not force
+   visual updates.
+2. Display topology is read when the sampler starts and only on explicit
+   display add/remove/metrics invalidation. Cursor ticks reuse the cached
+   snapshot.
+3. Successful automatic-language polling remains at 1 s. An unchanged glyph is
+   not propagated to the controller; a lightweight freshness heartbeat updates
+   the observation timestamp. A `/usr/bin/defaults` sample measured 9.35 ms
+   mean and 13.61 ms p95 locally, so lowering the cadence was rejected in favor
+   of the existing worst-case 1 s user-visible response.
+4. A packaged macOS arm64 idle sample at 60+ seconds measured about 0.8% main
+   CPU with GPU, NetworkService, and Renderer at 0.0% in the sampled interval.
+   The earlier pre-optimization 46-second sample measured about 19.3% combined
+   process CPU. RSS remained approximately 372 MiB, so this optimization targets
+   wake-ups/CPU rather than baseline Electron memory.
+5. CI uploads exact final ZIP/EXE files rather than `release/`. Pre-optimization
+   input was 5.16x the final artifact bytes for macOS and 2.48x for Windows.
+6. `npm run test:runtime` validates an existing build; CI builds once.
+   `npm run test:runtime:clean` is the clean-clone build-plus-smoke command.
+7. Electron locale filtering is observable mainly on Windows: the locale
+   directory fell from 55 files to 1 file, and ZIP/EXE sizes each fell by about
+   8.8%. macOS Framework locale payload remained part of the Electron binary;
+   only app `.lproj` resources are filtered there, so archive reduction was
+   negligible and no large macOS saving is claimed.

@@ -2547,3 +2547,10 @@ checkbox has evidence from native x64/arm64 hardware or a native VM.
 - [x] Run the packaged runtime smoke test in CI and release workflows.
 - [x] Rerun all four package/architecture jobs and complete an independent
   release-blocker code review with no remaining blocker.
+- [x] Deduplicate idle controller/overlay/renderer visual work and cache
+  display topology outside the 16 ms cursor loop.
+- [x] Deduplicate unchanged language glyph observations while heartbeating
+  freshness at the preserved 1 s cadence.
+- [x] Upload exact ZIP/EXE artifacts only and avoid duplicate CI builds.
+- [x] Restrict Electron locales to English and Korean; retain Korean runtime
+  glyph smoke coverage and record per-platform package-size evidence.

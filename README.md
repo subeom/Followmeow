@@ -37,8 +37,12 @@ npm run check
 npm test
 npm run build
 npm run test:runtime
+npm run test:runtime:clean
 npm start
 ```
+
+`npm run test:runtime` validates the existing build. Use
+`npm run test:runtime:clean` when starting from a clean clone.
 
 Package and verify one architecture:
 
@@ -50,6 +54,10 @@ npm run verify:mac:x64
 Equivalent `mac:arm64`, `win:x64`, and `win:arm64` scripts create and inspect
 the other native targets. Architecture verifiers read the Mach-O or PE header
 instead of trusting a target string.
+
+Packaged Electron locales are limited to English and Korean. This keeps English
+and Korean application/runtime text available while removing unrelated locale
+payload.
 
 ## Attribution and license
 
