@@ -25,10 +25,20 @@ const MAC_LATIN_LAYOUTS = new Set([
   "us",
   "usinternational-pc",
 ]);
-const WINDOWS_LATIN_PRIMARY_LANGUAGE_IDS = new Set([
-  0x03, 0x05, 0x06, 0x07, 0x09, 0x0a, 0x0b, 0x0c, 0x0e, 0x0f, 0x10,
-  0x13, 0x14, 0x15, 0x16, 0x18, 0x1a, 0x1b, 0x1d, 0x1e, 0x1f, 0x24,
-  0x25, 0x26, 0x27, 0x2a, 0x2d, 0x3a, 0x3c,
+const WINDOWS_LATIN_LAYOUT_IDS = new Set([
+  0x0409,
+  0x0809,
+  0x0c09,
+  0x1009,
+  0x1409,
+  0x1809,
+  0x1c09,
+  0x2009,
+  0x2409,
+  0x2809,
+  0x2c09,
+  0x3009,
+  0x3409,
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -91,11 +101,10 @@ export function parseWindowsLayoutStrict(stdout: string): LanguageGlyph | null {
     return null;
   }
   const layoutId = Number.parseInt(parsed.layoutId, 16);
-  const languageId = layoutId & 0x3ff;
   if (layoutId === 0x0412) {
     return parsed.imeOpen ? "한" : "A";
   }
-  return WINDOWS_LATIN_PRIMARY_LANGUAGE_IDS.has(languageId) ? "A" : "hidden";
+  return WINDOWS_LATIN_LAYOUT_IDS.has(layoutId) ? "A" : "hidden";
 }
 
 export function parseWindowsLayout(stdout: string): LanguageGlyph {
