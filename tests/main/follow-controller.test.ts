@@ -216,5 +216,16 @@ describe("follow controller", () => {
       facesRight: false,
       motion: "turn",
     });
+    for (let index = 0; index < 8; index += 1) {
+      controller.tick(
+        sample(4 + index, 484, 1_048 + index * 16),
+        1_048 + index * 16,
+      );
+    }
+    const settledHeading = frames.at(-1);
+    expect(settledHeading?.kind).toBe("show");
+    if (settledHeading?.kind === "show") {
+      expect(settledHeading.bounds.x).toBeGreaterThan(400);
+    }
   });
 });

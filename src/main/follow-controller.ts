@@ -212,6 +212,17 @@ export class FollowController {
         previousFacesRight !== desiredFacesRight
       ) {
         this.facesRight = desiredFacesRight;
+        const candidateLength = Math.hypot(deltaX, deltaY);
+        this.heading =
+          candidateLength >= 0.5
+            ? {
+                x: deltaX / candidateLength,
+                y: deltaY / candidateLength,
+              }
+            : {
+                x: desiredFacesRight ? 1 : -1,
+                y: 0,
+              };
       }
       if (
         distance >= 0.5 &&
