@@ -43,6 +43,7 @@ export class FollowController {
   private heading: Point = { x: 1, y: 0 };
   private facesRight = true;
   private motion: MotionState = "idle";
+  private normalMotionState: Exclude<MotionState, "turn"> = "idle";
   private motionStartedAtMs = 0;
   private lastMovementAtMs = 0;
   private automaticLanguage: LanguageObservation | null = null;
@@ -168,12 +169,17 @@ export class FollowController {
     }
 
     const metrics = this.updateMotionMetrics(current, nowMs, target);
-    const normalState = chooseMotionState(
-      this.motion,
+    const nextNormalState = chooseMotionState(
+      this.normalMotionState,
       metrics,
       this.reducedMotion,
     );
-    const state = this.turns.activeAt(nowMs) ? "turn" : normalState;
+    if (nextNormalState === "turn") {
+      throw new Error("normal motion state cannot be turn");
+    }
+    this.normalMotionState = nextNormalState;
+    const turnActive = this.turns.activeAt(nowMs) && !this.reducedMotion;
+    const state = turnActive ? "turn" : nextNormalState;
     if (state !== this.motion) {
       this.motion = state;
       this.motionStartedAtMs = nowMs;
@@ -349,6 +355,7 @@ export class FollowController {
     this.heading = { x: 1, y: 0 };
     this.facesRight = true;
     this.motion = "idle";
+    this.normalMotionState = "idle";
     this.motionStartedAtMs = 0;
     this.lastMovementAtMs = 0;
   }

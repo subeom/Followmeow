@@ -357,4 +357,76 @@ describe("follow controller", () => {
       expect(frame).toMatchObject({ facesRight: true });
     }
   });
+
+  it.each([
+    [16, 120, "walk"],
+    [100, 16, "run"],
+  ] as const)(
+    "returns to the %s-point normal baseline exactly when turn expires",
+    (displacement, elapsedMs, baseline) => {
+      const frames: RenderFrame[] = [];
+      const controller = new FollowController(
+        defaultSettings("darwin"),
+        false,
+        (frame) => frames.push(frame),
+      );
+      controller.rendererReady();
+      controller.tick(sample(1, 500, 1_000), 1_000);
+      const turnStartMs = 1_000 + elapsedMs;
+      const reversedX = 500 - displacement;
+      controller.tick(
+        sample(2, reversedX, turnStartMs),
+        turnStartMs,
+      );
+      expect(frames.at(-1)).toMatchObject({
+        motion: "turn",
+        facesRight: false,
+      });
+
+      controller.tick(
+        sample(3, reversedX, turnStartMs + 119),
+        turnStartMs + 119,
+      );
+      expect(frames.at(-1)).toMatchObject({ motion: "turn" });
+
+      controller.tick(
+        sample(4, reversedX, turnStartMs + 120),
+        turnStartMs + 120,
+      );
+      expect(frames.at(-1)).toMatchObject({ motion: baseline });
+
+      controller.tick(
+        sample(5, reversedX, turnStartMs + 121),
+        turnStartMs + 121,
+      );
+      expect(frames.at(-1)).toMatchObject({ motion: baseline });
+
+      controller.tick(
+        sample(6, reversedX, turnStartMs + 180),
+        turnStartMs + 180,
+      );
+      expect(frames.at(-1)).toMatchObject({ motion: "idle" });
+    },
+  );
+
+  it("keeps reduced motion on the idle baseline during a reversal", () => {
+    const frames: RenderFrame[] = [];
+    const controller = new FollowController(
+      defaultSettings("darwin"),
+      true,
+      (frame) => frames.push(frame),
+    );
+    controller.rendererReady();
+    controller.tick(sample(1, 500, 1_000), 1_000);
+    controller.tick(sample(2, 480, 1_016), 1_016);
+    controller.tick(sample(3, 480, 1_032), 1_032);
+
+    for (const frame of frames) {
+      expect(frame.kind).toBe("show");
+      if (frame.kind === "show") {
+        expect(frame.motion).toBe("idle");
+        expect(excludesCursor(frame, { x: 480, y: 400 })).toBe(true);
+      }
+    }
+  });
 });
