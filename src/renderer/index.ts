@@ -28,7 +28,7 @@ const glyphTransition = new GlyphTransition(
   window.matchMedia("(prefers-reduced-motion: reduce)").matches,
 );
 window.followmeow.onFrame((frame) => {
-  if (frame.sequence < lastSequence) {
+  if (frame.sequence <= lastSequence) {
     return;
   }
   lastSequence = frame.sequence;

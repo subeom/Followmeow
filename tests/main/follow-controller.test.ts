@@ -123,4 +123,28 @@ describe("follow controller", () => {
         .toBeLessThanOrEqual(1_768);
     }
   });
+
+  it("recovers after repeated invalidations with a monotonic output sequence", () => {
+    const frames: RenderFrame[] = [];
+    const controller = new FollowController(
+      defaultSettings("darwin"),
+      false,
+      (frame) => frames.push(frame),
+    );
+    controller.rendererReady();
+    controller.tick(sample(1, 500, 1_000), 1_000);
+    for (let index = 0; index < 10; index += 1) {
+      controller.invalidate("screen-unknown", 1_010 + index);
+    }
+
+    controller.tick(sample(2, 520, 1_100), 1_100);
+    expect(frames.at(-1)).toMatchObject({
+      kind: "show",
+      sequence: 12,
+      glyph: "hidden",
+    });
+    expect(frames.map((frame) => frame.sequence)).toEqual(
+      Array.from({ length: 12 }, (_, index) => index + 1),
+    );
+  });
 });

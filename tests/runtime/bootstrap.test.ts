@@ -67,6 +67,16 @@ describe("packaged browser runtime", () => {
         .visible,
     ).toBe("true");
     expect(document.querySelector("#followmeow-glyph")?.textContent).toBe("A");
+    onFrame?.({
+      kind: "hide",
+      sequence: 1,
+      observedAtMs: 2,
+      reason: "stale-cursor",
+    });
+    expect(
+      document.querySelector<HTMLElement>("#followmeow-canvas")?.dataset
+        .visible,
+    ).toBe("true");
   });
 });
 

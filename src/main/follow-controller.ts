@@ -80,13 +80,13 @@ export class FollowController {
 
   invalidate(reason: HideReason, nowMs: number): void {
     this.resetMotion();
-    this.emitHide(reason, this.nextSequence(), nowMs);
+    this.emitHide(reason, nowMs);
   }
 
   quit(nowMs: number): void {
     this.quitting = true;
     this.resetMotion();
-    this.emitHide("quitting", this.nextSequence(), nowMs);
+    this.emitHide("quitting", nowMs);
   }
 
   tick(sample: unknown, nowMs: number): void {
@@ -99,21 +99,18 @@ export class FollowController {
       sample,
     });
     if (decision.kind === "hide") {
-      const sequence = isCursorSample(sample)
-        ? sample.sequence
-        : this.nextSequence();
       if (isCursorSample(sample) && decision.reason === "topology-changed") {
         this.previousDisplayGeneration = sample.displayGeneration;
         this.resetMotion();
       }
-      this.emitHide(decision.reason, sequence, nowMs);
+      this.emitHide(decision.reason, nowMs);
       return;
     }
 
     const current = decision.sample;
     const display = findContainingDisplay(current.displays, current.cursor);
     if (display === null) {
-      this.emitHide("screen-unknown", current.sequence, nowMs);
+      this.emitHide("screen-unknown", nowMs);
       return;
     }
 
@@ -129,8 +126,8 @@ export class FollowController {
 
     const target = this.targetOrigin(current, display);
     if (target === null) {
-      this.emitHide("screen-unknown", current.sequence, nowMs);
       this.resetMotion();
+      this.emitHide("screen-unknown", nowMs);
       return;
     }
 
@@ -141,8 +138,8 @@ export class FollowController {
     }
     const clampedFollower = clampOverlayOrigin(this.follower.position, display);
     if (clampedFollower === null) {
-      this.emitHide("screen-unknown", current.sequence, nowMs);
       this.resetMotion();
+      this.emitHide("screen-unknown", nowMs);
       return;
     }
     if (
@@ -166,7 +163,7 @@ export class FollowController {
 
     const frame: RenderFrame = {
       kind: "show",
-      sequence: current.sequence,
+      sequence: this.nextSequence(),
       observedAtMs: nowMs,
       bounds: {
         x: this.follower.position.x,
@@ -179,10 +176,7 @@ export class FollowController {
       glyph: this.resolveGlyph(nowMs),
       phaseMs: Math.max(0, nowMs - this.motionStartedAtMs),
     };
-    this.lastEmittedSequence = Math.max(
-      this.lastEmittedSequence,
-      frame.sequence,
-    );
+    this.lastEmittedSequence = frame.sequence;
     this.emit(frame);
   }
 
@@ -286,8 +280,9 @@ export class FollowController {
     );
   }
 
-  private emitHide(reason: HideReason, sequence: number, nowMs: number): void {
-    this.lastEmittedSequence = Math.max(this.lastEmittedSequence, sequence);
+  private emitHide(reason: HideReason, nowMs: number): void {
+    const sequence = this.nextSequence();
+    this.lastEmittedSequence = sequence;
     this.emit({
       kind: "hide",
       sequence,
