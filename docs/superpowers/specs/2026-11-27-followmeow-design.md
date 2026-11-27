@@ -624,7 +624,8 @@ they define regression baselines rather than guarantees:
 6. `npm run test:runtime` validates an existing build; CI builds once.
    `npm run test:runtime:clean` is the clean-clone build-plus-smoke command.
 7. Electron locale filtering is observable mainly on Windows: the locale
-   directory fell from 55 files to 1 file, and ZIP/EXE sizes each fell by about
-   8.8%. macOS Framework locale payload remained part of the Electron binary;
-   only app `.lproj` resources are filtered there, so archive reduction was
-   negligible and no large macOS saving is claimed.
+   directory fell from 55 files to `en-US.pak` and `ko.pak` (about 44.6 MB to
+   1.15 MB), and ZIP/EXE sizes each fell by about 8.6-8.8%. macOS app
+   `.lproj` resources are limited to `en.lproj` and `ko.lproj`, but Framework
+   locale payload remains inside the Electron binary, so the archive reduction
+   was only about 0.01% and no large macOS saving is claimed.
