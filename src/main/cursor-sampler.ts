@@ -21,6 +21,7 @@ export class CursorSampler {
   private sequence = 0;
   private displays: readonly DisplaySnapshot[] | null = null;
   private lastInvalidReason: "screen-unknown" | "stale-cursor" | null = null;
+  private nextDisplayRefreshAtMs = 0;
 
   constructor(
     private readonly source: CursorSource,
@@ -34,7 +35,6 @@ export class CursorSampler {
     if (this.timer !== null) {
       return;
     }
-    this.refreshDisplays();
     this.tick();
     this.timer = setInterval(() => this.tick(), SAMPLE_INTERVAL_MS);
   }
@@ -49,7 +49,12 @@ export class CursorSampler {
   noteDisplayChange(): void {
     this.displayGeneration += 1;
     if (this.timer !== null) {
-      this.refreshDisplays();
+      try {
+        this.refreshDisplays(this.source.now());
+      } catch {
+        this.displays = null;
+        this.reportInvalid("screen-unknown");
+      }
     }
   }
 
@@ -64,8 +69,14 @@ export class CursorSampler {
       return;
     }
     if (this.displays === null) {
-      this.reportInvalid("screen-unknown");
-      return;
+      if (observedAtMs < this.nextDisplayRefreshAtMs) {
+        this.reportInvalid("screen-unknown");
+        return;
+      }
+      this.refreshDisplays(observedAtMs);
+      if (this.displays === null) {
+        return;
+      }
     }
 
     const candidate: CursorSample = {
@@ -85,15 +96,19 @@ export class CursorSampler {
     this.onSample(candidate);
   }
 
-  private refreshDisplays(): void {
+  private refreshDisplays(nowMs: number): void {
     try {
       this.displays = this.source.displays();
       if (!Array.isArray(this.displays)) {
         this.displays = null;
+        this.nextDisplayRefreshAtMs = nowMs + 1_000;
         this.reportInvalid("screen-unknown");
+        return;
       }
+      this.nextDisplayRefreshAtMs = 0;
     } catch {
       this.displays = null;
+      this.nextDisplayRefreshAtMs = nowMs + 1_000;
       this.reportInvalid("screen-unknown");
     }
   }

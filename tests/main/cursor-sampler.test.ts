@@ -124,4 +124,43 @@ describe("cursor sampler", () => {
     expect(invalid).toHaveBeenCalledWith("screen-unknown");
     sampler.stop();
   });
+
+  it("retries a failed topology refresh after one second", () => {
+    let now = 1_234;
+    let fail = true;
+    const displays = vi.fn(() => {
+      if (fail) {
+        throw new Error("temporary display failure");
+      }
+      return [
+        { id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 } },
+      ];
+    });
+    const samples: unknown[] = [];
+    const invalid = vi.fn();
+    const sampler = new CursorSampler(
+      {
+        cursor: () => ({ x: 100, y: 200 }),
+        displays,
+        now: () => now,
+      },
+      (sample) => samples.push(sample),
+      invalid,
+    );
+
+    sampler.start();
+    expect(displays).toHaveBeenCalledTimes(1);
+    expect(invalid).toHaveBeenCalledWith("screen-unknown");
+
+    now = 2_233;
+    vi.advanceTimersByTime(16);
+    expect(displays).toHaveBeenCalledTimes(1);
+
+    fail = false;
+    now = 2_234;
+    vi.advanceTimersByTime(16);
+    expect(displays).toHaveBeenCalledTimes(2);
+    expect(samples).toHaveLength(1);
+    sampler.stop();
+  });
 });

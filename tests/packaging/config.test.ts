@@ -47,7 +47,8 @@ describe("packaging", () => {
   });
 
   it("packages only English and Korean Electron locales", () => {
-    expect(manifest.build.electronLanguages).toEqual(["en", "ko"]);
+    expect(manifest.build.mac.electronLanguages).toEqual(["en", "ko"]);
+    expect(manifest.build.win.electronLanguages).toEqual(["en-US", "ko"]);
   });
 
   it("runs the packaged runtime smoke test in CI and release packaging", () => {

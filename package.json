@@ -40,10 +40,6 @@
     "appId": "com.subeom.Followmeow",
     "productName": "Followmeow",
     "asar": true,
-    "electronLanguages": [
-      "en",
-      "ko"
-    ],
     "directories": {
       "output": "release"
     },
@@ -71,12 +67,20 @@
     ],
     "mac": {
       "category": "public.app-category.utilities",
+      "electronLanguages": [
+        "en",
+        "ko"
+      ],
       "icon": "build/icon.png",
       "target": [
         "zip"
       ]
     },
     "win": {
+      "electronLanguages": [
+        "en-US",
+        "ko"
+      ],
       "icon": "build/icon.png",
       "target": [
         "nsis",
