@@ -76,4 +76,10 @@ describe("spring and turn", () => {
     expect(turn.activeAt(1_050)).toBe(false);
     expect(turn.update(12, true, false, 1_050)).toBe(true);
   });
+
+  it("accumulates opposite-direction movement below the turn threshold", () => {
+    const turn = new TurnTracker();
+    expect(turn.update(-8, true, false, 1_000)).toBe(false);
+    expect(turn.update(-8, true, false, 1_016)).toBe(true);
+  });
 });

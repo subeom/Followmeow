@@ -198,4 +198,23 @@ describe("follow controller", () => {
       motion: "turn",
     });
   });
+
+  it("accumulates repeated sub-threshold cursor movement into one turn", () => {
+    const frames: RenderFrame[] = [];
+    const controller = new FollowController(
+      defaultSettings("darwin"),
+      false,
+      (frame) => frames.push(frame),
+    );
+    controller.rendererReady();
+    controller.tick(sample(1, 500, 1_000), 1_000);
+    controller.tick(sample(2, 492, 1_016), 1_016);
+    expect(frames.at(-1)).toMatchObject({ facesRight: true });
+
+    controller.tick(sample(3, 484, 1_032), 1_032);
+    expect(frames.at(-1)).toMatchObject({
+      facesRight: false,
+      motion: "turn",
+    });
+  });
 });

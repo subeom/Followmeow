@@ -115,6 +115,8 @@ export function chooseMotionState(
 export class TurnTracker {
   private turnStartedAtMs: number | null = null;
   private lastTurnAtMs: number | null = null;
+  private candidateFacesRight: boolean | null = null;
+  private candidateDisplacement = 0;
 
   activeAt(nowMs: number): boolean {
     this.assertTime(nowMs);
@@ -135,14 +137,28 @@ export class TurnTracker {
     if (this.activeAt(nowMs)) {
       return true;
     }
+    if (previousFacesRight === facesRight) {
+      this.clearCandidate();
+      return false;
+    }
+    if (this.candidateFacesRight !== facesRight) {
+      this.candidateFacesRight = facesRight;
+      this.candidateDisplacement = 0;
+    }
+    this.candidateDisplacement += Math.max(
+      0,
+      Math.abs(horizontalDisplacement),
+    );
+    if (this.candidateDisplacement < TURN_DISPLACEMENT_DIP) {
+      return false;
+    }
     if (
-      previousFacesRight !== facesRight &&
-      Math.abs(horizontalDisplacement) >= TURN_DISPLACEMENT_DIP &&
-      (this.lastTurnAtMs === null ||
-        nowMs - this.lastTurnAtMs >= TURN_LOCKOUT_MS)
+      this.lastTurnAtMs === null ||
+      nowMs - this.lastTurnAtMs >= TURN_LOCKOUT_MS
     ) {
       this.turnStartedAtMs = nowMs;
       this.lastTurnAtMs = nowMs;
+      this.clearCandidate();
       return true;
     }
     return false;
@@ -151,11 +167,17 @@ export class TurnTracker {
   reset(): void {
     this.turnStartedAtMs = null;
     this.lastTurnAtMs = null;
+    this.clearCandidate();
   }
 
   private assertTime(nowMs: number): void {
     if (!Number.isFinite(nowMs)) {
       throw new RangeError("turn timing must be finite");
     }
+  }
+
+  private clearCandidate(): void {
+    this.candidateFacesRight = null;
+    this.candidateDisplacement = 0;
   }
 }
