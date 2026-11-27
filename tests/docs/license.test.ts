@@ -43,6 +43,9 @@ describe("project notices", () => {
       expect(smoke).toContain(target);
     }
     expect(smoke).toContain("cross-packaging is not native runtime proof");
+    expect(readFileSync("README.md", "utf8")).toContain(
+      "control full-screen visibility on macOS only",
+    );
   });
 
   it("marks authored production source with SPDX", () => {

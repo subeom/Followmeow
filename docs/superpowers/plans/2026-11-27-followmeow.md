@@ -1071,8 +1071,10 @@ git commit -m "feat: import original Followmeow cat artwork"
 - Create: `src/renderer/index.css`
 - Create: `src/renderer/view-model.ts`
 - Create: `src/renderer/index.ts`
+- Create: `scripts/bundle-runtime.mjs`
 - Create: `tests/renderer/view-model.test.ts`
 - Create: `tests/renderer/security.test.ts`
+- Create: `tests/runtime/bootstrap.test.ts`
 - Test: `tests/renderer/view-model.test.ts`
 - Test: `tests/renderer/security.test.ts`
 
@@ -1177,7 +1179,7 @@ The preload implementation validates every received payload with
 `followmeow:renderer-ready`. It never exposes `ipcRenderer.send`/`invoke`.
 
 In `index.html`, include the full CSP from the specification, use external
-`index.css` and `index.js`, and create:
+`index.css` and `index.bundle.js`, and create:
 
 ```html
 <main id="followmeow-canvas" data-visible="false" aria-hidden="true">
@@ -1191,7 +1193,11 @@ pointer events, and has no movement when `prefers-reduced-motion: reduce`.
 `view-model.ts` chooses pose assets from `motion` and `phaseMs` (alternate
 walk/run every 250 ms), maps `hidden` to an empty glyph, and maps `facesRight`
 to `scaleX` 1 or -1. `index.ts` calls `ready`, maintains a monotonically
-increasing `sequence`, discards older frames, and clears image/glyph on hide.
+increasing `sequence`, discards duplicate and older frames, and clears
+image/glyph on hide. Add `scripts/bundle-runtime.mjs`: bundle the renderer as a
+browser IIFE and the preload as self-contained CommonJS with Electron external.
+`tests/runtime/bootstrap.test.ts` executes both package outputs and asserts
+ready plus the first valid frame.
 
 - [ ] **Step 4: Verify GREEN and renderer type safety**
 
@@ -1200,6 +1206,7 @@ Run:
 ```bash
 npm run check
 npm test -- --run tests/renderer/view-model.test.ts tests/renderer/security.test.ts
+npm run test:runtime
 ```
 
 Expected: 6 renderer/security assertions pass. `npm run check` proves the
@@ -1451,9 +1458,11 @@ export class FollowController {
 The controller keeps no DOM/Electron dependency. A valid sample passes through
 `evaluateVisibility`, `findContainingDisplay`, desired target, spring, clamp,
 and motion state. It consumes at most `MAX_FRAME_STEPS` fixed steps, resets on a
-display-generation decision, emits exactly one ordered frame per `tick`, and
-uses `sample.sequence` as the output sequence. A manually hidden glyph and a
-hide frame never preserve prior glyph or bounds data.
+display-generation, stale-cursor, or screen-unknown discontinuity, and emits
+exactly one ordered frame per `tick` from a controller-owned output sequence.
+A 12 DIP reversal commits facing and heading; smaller reversal jitter preserves
+the current facing. A manually hidden glyph and a hide frame never preserve
+prior glyph or bounds data.
 `FollowController.setAutomaticLanguage` is added in Task 13; before that task,
 automatic mode resolves to `hidden`, while manual modes resolve immediately.
 
@@ -1709,6 +1718,7 @@ export type TrayAction =
 export function buildTrayMenuModel(
   version: string,
   settings: AppSettings,
+  platform: PlatformName,
 ): TrayMenuEntry[];
 ```
 
@@ -1720,6 +1730,12 @@ that succeeds; if saving then fails, restore the previous native login-item
 value before reporting failure. On every failure, the handler preserves the
 prior in-memory setting and sets a tray tooltip with a sanitized error, never
 the user-data path.
+
+Serialize the complete read-modify-save/apply operation through a lifecycle
+queue. Re-read `store.value` at transaction execution time, and recheck
+`quitting` after every awaited operation so no controller, overlay, or tray
+method is called after destruction. The Windows menu omits `Show over full
+screen`; the macOS menu retains it.
 
 `index.ts` must:
 
@@ -1941,10 +1957,11 @@ explicit allowlist of `ABC`, `US`, `USInternational-PC`, `British`,
 
 `parseWindowsLayout` accepts only a JSON object with `layoutId` matching four
 hexadecimal digits and a Boolean `imeOpen`. Language ID `0412` returns `한`
-only when open and `A` when closed. Known Latin primary IDs `06`, `07`, `08`,
-`09`, `0A`, `0C` for encoded supported Western scripts, `10`, `13`, `14`, `15`,
-`16`, `18`, `1A`, `1B`, `1D`, `1E`, `1F`, `24`, `2A`, `2D`, `3A`, and `3C`
-return `A`; everything else returns `hidden`.
+only when open and `A` when closed. Approved full English LCIDs (US `0409`,
+UK `0809`, Australia `0C09`, Canada `1009`, New Zealand `1409`, and the
+explicit remaining English-region list) return `A`; every other full LCID,
+including Thai `041E`, Spanish `0C0A`, Chinese, and malformed values, returns
+`hidden`.
 `resolveLanguage` accepts automatic observations only when `nowMs -
 observedAtMs <= 3000`; manual mode always wins.
 
@@ -2001,6 +2018,7 @@ export type ProcessRunner = (
   command: string,
   args: readonly string[],
   timeoutMs: number,
+  signal: AbortSignal,
 ) => Promise<ProcessResult>;
 
 export class LanguageProvider {
@@ -2029,7 +2047,10 @@ Successful observations schedule the next poll after 1,000 ms. Errors emit one
 callback for the unchanged error reason, emit a hidden observation with the
 current monotonic time, and schedule 1, 2, 4, 8, 16, then 30 seconds. `reset`
 clears timers and returns to the 1,000 ms cadence; `stop` prevents all later
-callbacks. No poll may overlap another.
+callbacks. Every start/poll captures a generation token and an AbortController.
+Stop/reset aborts the active child; obsolete Promise completion cannot emit a
+state/error or create a retry timer. A new generation may start after reset
+without sharing state with the obsolete poll.
 
 - [ ] **Step 7: Wire provider, manual override, tray, and renderer transition**
 
@@ -2284,6 +2305,7 @@ jobs:
       - run: npm run check
       - run: npm test
       - run: npm run build
+      - run: npm run test:runtime
       - run: npm run package:${{ matrix.platform }}:${{ matrix.arch }}
       - run: npm run verify:${{ matrix.platform }}:${{ matrix.arch }}
       - uses: actions/upload-artifact@v4
@@ -2501,3 +2523,19 @@ On each supported operating system, run the two matching architecture package
 commands and verifier commands from Task 14. Review
 `docs/release-smoke-checklist.md`; implementation is not complete until every
 checkbox has evidence from native x64/arm64 hardware or a native VM.
+
+## Release blocker remediation
+
+- [x] Bundle the browser renderer as IIFE and the sandbox preload as
+  Electron-external CommonJS; execute both package outputs in VM/jsdom.
+- [x] Make FollowController the sole output-sequence owner and reject duplicate
+  frames in the renderer.
+- [x] Bound language-provider callbacks by generation and AbortController.
+- [x] Serialize tray setting transactions and prevent post-quit application.
+- [x] Reset follower, heading, and turn state at stale/screen discontinuities.
+- [x] Apply 12 DIP facing hysteresis before committing a turn.
+- [x] Omit the unsupported Windows full-screen tray item.
+- [x] Replace broad Windows primary-language families with exact approved LCIDs.
+- [x] Run the packaged runtime smoke test in CI and release workflows.
+- [ ] Rerun all four package/architecture jobs and complete an independent
+  release-blocker code review with no remaining blocker.

@@ -45,4 +45,13 @@ describe("packaging", () => {
     expect(png.readUInt32BE(16)).toBe(512);
     expect(png.readUInt32BE(20)).toBe(512);
   });
+
+  it("runs the packaged runtime smoke test in CI and release packaging", () => {
+    for (const path of [
+      ".github/workflows/ci.yml",
+      ".github/workflows/release.yml",
+    ]) {
+      expect(readFileSync(path, "utf8")).toContain("npm run test:runtime");
+    }
+  });
 });

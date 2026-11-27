@@ -10,6 +10,10 @@ beforeAll(() => {
     cwd: process.cwd(),
     stdio: "pipe",
   });
+  execFileSync(process.execPath, ["scripts/copy-static.mjs"], {
+    cwd: process.cwd(),
+    stdio: "pipe",
+  });
 });
 
 describe("packaged browser runtime", () => {

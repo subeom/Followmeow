@@ -130,12 +130,13 @@ environment variables, or arbitrary `invoke` methods.
 | `src/main/settings-store.ts` | Atomic local JSON load, independent-key validation, and atomic save |
 | `src/main/language-provider.ts` | Exact child-process invocation, timeout, and retry/backoff |
 | `src/main/cursor-sampler.ts` | Timer-driven cursor/display snapshots and stale-age metadata |
-| `src/main/follow-controller.ts` | Frame sampling, policy evaluation, motion update, and IPC frame production |
+| `src/main/follow-controller.ts` | Frame sampling, policy evaluation, motion update, monotonic output sequencing, and IPC frame production |
 | `src/main/overlay-window.ts` | Overlay configuration, bounds updates, IPC frame delivery, and cleanup |
 | `src/main/tray.ts` | Native menu binding and checked menu state |
 | `src/main/index.ts` | Electron lifecycle wiring and dependency composition |
-| `src/preload/index.ts` | Minimal context-isolated renderer bridge |
+| `src/preload/index.ts` | Minimal context-isolated renderer bridge, bundled as a self-contained CommonJS preload |
 | `src/renderer/index.ts` | Render-frame application and pose/glyph presentation |
+| `scripts/bundle-runtime.mjs` | IIFE renderer and Electron-external preload bundling |
 
 There are no native npm addons. Any package with a native runtime addon is
 rejected from the dependency graph.
@@ -151,6 +152,12 @@ Electron screen API
   -> preload bridge
   -> isolated renderer
 ```
+
+The build emits `dist/renderer/index.bundle.js` as a browser IIFE and
+`dist/preload/index.bundle.cjs` as a sandbox-compatible CommonJS preload with
+Electron external. TypeScript's raw CommonJS renderer output is not loaded by
+the browser. `FollowController` owns every output frame sequence; input sampler
+sequences are diagnostic metadata only.
 
 Automatic glyph observations travel through a separate, lower-frequency path:
 
@@ -186,8 +193,9 @@ For each sample:
 3. Find the display whose `bounds` contains the point. A point on a shared edge
    belongs deterministically to the first display in the platform snapshot order.
 4. If none contains it, emit a hide frame and reset follower position.
-5. Compute a desired follower anchor behind the cursor using the last valid
-   heading. Keep the previous heading when speed is below 0.5 px/s.
+5. Compute a desired follower anchor behind the cursor using the last committed
+   heading. A horizontal reversal changes facing and heading only after the
+   12 DIP turn threshold is crossed; 1 DIP jitter keeps the current facing.
 6. Clamp the complete 144 x 96 DIP overlay bounds inside the selected display
    with an 8 DIP safety margin.
 7. Apply the result to the overlay and emit only serializable values.
@@ -338,7 +346,7 @@ state; it must not report success.
 | `enabled` | boolean | `true` | Tray `Enable Followmeow` |
 | `languageMode` | `automatic`, `hidden`, `A`, `한` | `automatic` | Tray `Torso label` submenu |
 | `followSpeedPercent` | integer 75-150 | `100` | Tray `Follow speed` submenu |
-| `showOverFullScreen` | boolean | `true` on macOS; `false` on Windows | Tray `Show over full screen` |
+| `showOverFullScreen` | boolean | `true` on macOS; `false` on Windows | macOS tray `Show over full screen`; omitted on Windows |
 | `launchAtLogin` | boolean | `false` | Tray `Launch at login` |
 | `motionPolicy` | `system`, `reduced` | `system` | Validated settings file; tray `Reduce motion` toggle |
 
@@ -362,7 +370,7 @@ The menu order and labels are stable:
 5. `Follow speed` submenu: `Calm (75%)`, `Normal (100%)`, `Playful (125%)`,
    `Quick (150%)`
 6. `Reduce motion`
-7. `Show over full screen` (when supported)
+7. `Show over full screen` (macOS only; omitted on Windows)
 8. `Launch at login`
 9. separator
 10. `About Followmeow` (opens the locally packaged notices document)
@@ -439,6 +447,12 @@ channels, or external protocol handling.
   renders no glyph. A manual `A`, `한`, or hidden selection remains valid.
 - A provider failure is reported once for an unchanged error state, then retried
   after 1, 2, 4, 8, 16, and 30 second intervals. Recovery resets the backoff.
+- Stop/reset aborts the active child and advances a generation token. A late
+  callback from an obsolete generation cannot emit state/error or schedule a
+  timer.
+- Settings tray transactions are serialized. Each transaction re-reads the
+  latest stored snapshot and cannot apply to destroyed runtime objects after
+  quit.
 
 ## 12. Packaging and releases
 
@@ -519,9 +533,10 @@ Implementation is complete only when all criteria are true:
     the exact macOS `defaults` command and the packaged Windows PowerShell file.
 12. Quitting from the tray stops polling, removes the tray and overlay, and
     restores no changed cursor or keyboard state.
-13. `npm ci`, `npm run check`, `npm test`, and `npm run build` pass from a clean
-    checkout. Each packaging command creates an artifact for the requested
-    architecture.
+13. `npm ci`, `npm run check`, `npm test`, `npm run build`, and
+    `npm run test:runtime` pass from a clean checkout. The runtime test executes
+    the renderer/preload package output in VM/jsdom. Each packaging command
+    creates an artifact for the requested architecture.
 14. GPL/attribution files are present in source and packaged artifacts.
 15. A manual smoke run records all rows of the matrix in section 15 as passed.
 
@@ -534,7 +549,7 @@ Implementation is complete only when all criteria are true:
 | Cursor and corners | Pass all unit geometry cases plus physical top/bottom/left/right corners | Same | Same | Same |
 | Multi-display/DPI | Mixed-DPI two-display smoke test including negative-origin display | Same | Same | Same |
 | Click-through | Underlying browser button receives click through cat | Same | Same | Same |
-| Full-screen | Cat appears in full-screen policy mode on supported workspace; hides if capability is unavailable | Same | Same with Windows borderless/full-screen app | Same |
+| Full-screen | Cat appears in full-screen policy mode on supported workspace; hides if capability is unavailable | Same | No tray control; native borderless/full-screen observation only | Same |
 | Sleep/resume | Cat hides on stale after resume, then recovers without stale position | Same | Same | Same |
 | Tray/settings | Enable, glyph, speed, reduced motion, launch-at-login, and quit persist | Same | Same | Same |
 | Automatic A/한 | `/usr/bin/defaults` parser follows 2SetHangul/known-Latin layouts; provider failure hides the glyph and backs off | Same | Foreground layout/IME state parser follows Korean-open, Korean-closed, Latin, unknown, and malformed output | Same |
@@ -542,10 +557,10 @@ Implementation is complete only when all criteria are true:
 | Packaging | ZIP unpacks and launches; uninstaller not required on macOS | Same | NSIS installs, launches, and uninstalls | Same |
 
 Automated GitHub Actions jobs must cover clean build, type checking, tests,
-packaging, architecture inspection, and artifact upload for every row. Physical
-or native VM smoke coverage is mandatory before a release because emulation or
-cross-packaging alone cannot prove input layering, DPI behavior, or full-screen
-behavior.
+the packaged renderer/preload runtime smoke test, packaging, architecture
+inspection, and artifact upload for every row. Physical or native VM smoke
+coverage is mandatory before a release because emulation or cross-packaging
+alone cannot prove input layering, DPI behavior, or full-screen behavior.
 
 ## 16. Material implementation risks
 

@@ -24,7 +24,7 @@ Use the tray icon to:
 - choose automatic or manual torso labeling;
 - choose follow speed;
 - reduce motion;
-- control full-screen visibility;
+- control full-screen visibility on macOS only;
 - enable launch at login;
 - open the packaged notices;
 - quit.
@@ -36,6 +36,7 @@ npm ci
 npm run check
 npm test
 npm run build
+npm run test:runtime
 npm start
 ```
 
