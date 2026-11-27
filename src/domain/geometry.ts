@@ -8,7 +8,7 @@ import {
   type Point,
 } from "./types";
 
-const FOLLOWER_GAP_DIP = 34;
+export const FOLLOWER_GAP_DIP = 34;
 
 function isFinitePoint(point: Point): boolean {
   return Number.isFinite(point.x) && Number.isFinite(point.y);
@@ -79,4 +79,62 @@ export function clampOverlayOrigin(
     x: Math.min(Math.max(origin.x, minimumX), maximumX),
     y: Math.min(Math.max(origin.y, minimumY), maximumY),
   };
+}
+
+function clearOfCursor(
+  origin: Point,
+  cursor: Point,
+  gap: number,
+): boolean {
+  return (
+    origin.x >= cursor.x + gap ||
+    origin.x + OVERLAY_SIZE.width <= cursor.x - gap
+  );
+}
+
+export function clampOverlayOriginClearOfCursor(
+  origin: Point,
+  cursor: Point,
+  display: DisplaySnapshot,
+): Point | null {
+  if (!isFinitePoint(origin) || !isFinitePoint(cursor)) {
+    return null;
+  }
+
+  const request = clampOverlayOrigin(origin, display);
+  if (request === null) {
+    return null;
+  }
+  if (clearOfCursor(request, cursor, FOLLOWER_GAP_DIP)) {
+    return request;
+  }
+
+  for (const gap of [FOLLOWER_GAP_DIP, 0]) {
+    const candidates = [
+      clampOverlayOrigin(
+        {
+          x: cursor.x - gap - OVERLAY_SIZE.width,
+          y: request.y,
+        },
+        display,
+      ),
+      clampOverlayOrigin(
+        {
+          x: cursor.x + gap,
+          y: request.y,
+        },
+        display,
+      ),
+    ]
+      .filter((candidate): candidate is Point => candidate !== null)
+      .filter((candidate) => clearOfCursor(candidate, cursor, gap))
+      .sort(
+        (left, right) =>
+          Math.abs(left.x - origin.x) - Math.abs(right.x - origin.x),
+      );
+    if (candidates[0] !== undefined) {
+      return candidates[0];
+    }
+  }
+  return null;
 }

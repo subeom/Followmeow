@@ -141,6 +141,13 @@ export class TurnTracker {
       this.clearCandidate();
       return false;
     }
+    if (
+      this.lastTurnAtMs !== null &&
+      nowMs - this.lastTurnAtMs < TURN_LOCKOUT_MS
+    ) {
+      this.clearCandidate();
+      return false;
+    }
     if (this.candidateFacesRight !== facesRight) {
       this.candidateFacesRight = facesRight;
       this.candidateDisplacement = 0;

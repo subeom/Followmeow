@@ -7,7 +7,7 @@ import {
   type LanguageObservation,
 } from "../domain/language";
 import {
-  clampOverlayOrigin,
+  clampOverlayOriginClearOfCursor,
   desiredOverlayOrigin,
   findContainingDisplay,
 } from "../domain/geometry";
@@ -47,6 +47,7 @@ export class FollowController {
   private lastMovementAtMs = 0;
   private automaticLanguage: LanguageObservation | null = null;
   private readonly turns = new TurnTracker();
+  private committedTurnThisFrame = false;
 
   constructor(
     private settings: AppSettings,
@@ -91,6 +92,7 @@ export class FollowController {
   }
 
   tick(sample: unknown, nowMs: number): void {
+    this.committedTurnThisFrame = false;
     const decision = evaluateVisibility({
       enabled: this.settings.enabled,
       overlayReady: this.overlayReady,
@@ -138,12 +140,21 @@ export class FollowController {
       return;
     }
 
-    if (this.follower === null || !sameDisplay || this.reducedMotion) {
+    if (
+      this.follower === null ||
+      !sameDisplay ||
+      this.reducedMotion ||
+      this.committedTurnThisFrame
+    ) {
       this.follower = new SpringFollower(target);
     } else {
       this.advanceSpring(target, current.observedAtMs);
     }
-    const clampedFollower = clampOverlayOrigin(this.follower.position, display);
+    const clampedFollower = clampOverlayOriginClearOfCursor(
+      this.follower.position,
+      current.cursor,
+      display,
+    );
     if (clampedFollower === null) {
       this.resetMotion();
       this.emitHide("screen-unknown", nowMs);
@@ -212,6 +223,7 @@ export class FollowController {
         previousFacesRight !== desiredFacesRight
       ) {
         this.facesRight = desiredFacesRight;
+        this.committedTurnThisFrame = true;
         const candidateLength = Math.hypot(deltaX, deltaY);
         this.heading =
           candidateLength >= 0.5
@@ -227,13 +239,15 @@ export class FollowController {
       if (
         distance >= 0.5 &&
         !turnWasActive &&
-        Math.abs(deltaX) >= TURN_DISPLACEMENT_DIP
+        Math.abs(deltaX) >= TURN_DISPLACEMENT_DIP &&
+        desiredFacesRight === this.facesRight
       ) {
         this.heading = { x: deltaX / distance, y: deltaY / distance };
       }
     }
-    return clampOverlayOrigin(
+    return clampOverlayOriginClearOfCursor(
       desiredOverlayOrigin(sample.cursor, this.heading),
+      sample.cursor,
       display,
     );
   }

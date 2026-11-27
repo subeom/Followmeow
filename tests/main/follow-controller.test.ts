@@ -15,6 +15,16 @@ const sample = (
   sequence,
 });
 
+function excludesCursor(
+  frame: Extract<RenderFrame, { kind: "show" }>,
+  cursor: Readonly<{ x: number; y: number }>,
+): boolean {
+  return (
+    frame.bounds.x >= cursor.x ||
+    frame.bounds.x + frame.bounds.width <= cursor.x
+  );
+}
+
 describe("follow controller", () => {
   it("emits ordered show frames and a manual torso glyph", () => {
     const frames: RenderFrame[] = [];
@@ -216,7 +226,7 @@ describe("follow controller", () => {
       facesRight: false,
       motion: "turn",
     });
-    for (let index = 0; index < 8; index += 1) {
+    for (let index = 0; index < 60; index += 1) {
       controller.tick(
         sample(4 + index, 484, 1_048 + index * 16),
         1_048 + index * 16,
@@ -226,6 +236,116 @@ describe("follow controller", () => {
     expect(settledHeading?.kind).toBe("show");
     if (settledHeading?.kind === "show") {
       expect(settledHeading.bounds.x).toBeGreaterThan(400);
+    }
+  });
+
+  it("does not commit heading against the 160 ms turn lockout", () => {
+    const frames: RenderFrame[] = [];
+    const controller = new FollowController(
+      defaultSettings("darwin"),
+      false,
+      (frame) => frames.push(frame),
+    );
+    controller.rendererReady();
+    controller.tick(sample(1, 500, 1_000), 1_000);
+    controller.tick(sample(2, 480, 1_016), 1_016);
+    controller.tick(sample(3, 500, 1_137), 1_137);
+    for (let index = 0; index < 8; index += 1) {
+      controller.tick(
+        sample(4 + index, 500, 1_153 + index * 16),
+        1_153 + index * 16,
+      );
+    }
+
+    const followingFrames = frames.slice(2);
+    expect(followingFrames.length).toBeGreaterThan(0);
+    for (const frame of followingFrames) {
+      expect(frame.kind).toBe("show");
+      if (frame.kind === "show") {
+        expect(excludesCursor(frame, { x: 500, y: 400 })).toBe(true);
+      }
+    }
+    const settled = followingFrames.at(-1);
+    expect(settled?.kind).toBe("show");
+    if (settled?.kind === "show") {
+      expect(settled.bounds.x).toBeGreaterThanOrEqual(500);
+    }
+  });
+
+  it.each([
+    [{ x: 20, y: 400 }, 1_000],
+    [{ x: 1_900, y: 400 }, 1_000],
+  ] as const)("places edge frames without containing cursor %o", (cursor, now) => {
+    const frames: RenderFrame[] = [];
+    const controller = new FollowController(
+      defaultSettings("darwin"),
+      false,
+      (frame) => frames.push(frame),
+    );
+    controller.rendererReady();
+    controller.tick(
+      {
+        cursor,
+        displays: [
+          { id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 } },
+        ],
+        displayGeneration: 0,
+        observedAtMs: now,
+        sequence: 1,
+      },
+      now,
+    );
+    const frame = frames.at(-1);
+    expect(frame?.kind).toBe("show");
+    if (frame?.kind === "show") {
+      expect(excludesCursor(frame, cursor)).toBe(true);
+      expect(frame.bounds.x).toBeGreaterThanOrEqual(8);
+      expect(frame.bounds.x + frame.bounds.width).toBeLessThanOrEqual(1_912);
+    }
+  });
+
+  it("never interpolates a committed turn through the cursor", () => {
+    const frames: RenderFrame[] = [];
+    const controller = new FollowController(
+      defaultSettings("darwin"),
+      false,
+      (frame) => frames.push(frame),
+    );
+    controller.rendererReady();
+    controller.tick(sample(1, 500, 1_000), 1_000);
+    controller.tick(sample(2, 480, 1_016), 1_016);
+    const turnStart = frames.length - 1;
+    for (let index = 0; index < 12; index += 1) {
+      controller.tick(
+        sample(3 + index, 480, 1_032 + index * 16),
+        1_032 + index * 16,
+      );
+    }
+
+    for (const frame of frames.slice(turnStart)) {
+      expect(frame.kind).toBe("show");
+      if (frame.kind === "show") {
+        expect(excludesCursor(frame, { x: 480, y: 400 })).toBe(true);
+      }
+    }
+  });
+
+  it("does not accumulate alternating 1-DIP reversal noise", () => {
+    const frames: RenderFrame[] = [];
+    const controller = new FollowController(
+      defaultSettings("darwin"),
+      false,
+      (frame) => frames.push(frame),
+    );
+    controller.rendererReady();
+    controller.tick(sample(1, 500, 1_000), 1_000);
+    for (let index = 0; index < 20; index += 1) {
+      controller.tick(
+        sample(2 + index, index % 2 === 0 ? 499 : 500, 1_016 + index * 16),
+        1_016 + index * 16,
+      );
+      const frame = frames.at(-1);
+      expect(frame).toMatchObject({ facesRight: true });
     }
   });
 });

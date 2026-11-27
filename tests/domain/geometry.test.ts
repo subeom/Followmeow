@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   clampOverlayOrigin,
+  clampOverlayOriginClearOfCursor,
   desiredOverlayOrigin,
   findContainingDisplay,
 } from "../../src/domain/geometry";
@@ -56,6 +57,29 @@ describe("display geometry", () => {
       clampOverlayOrigin(
         { x: 0, y: 0 },
         { id: 3, bounds: { x: 0, y: 0, width: 100, height: 100 } },
+      ),
+    ).toBeNull();
+  });
+
+  it("chooses the opposite clamped side rather than containing the cursor", () => {
+    expect(
+      clampOverlayOriginClearOfCursor(
+        { x: 8, y: 352 },
+        { x: 20, y: 400 },
+        primary,
+      ),
+    ).toEqual({ x: 54, y: 352 });
+  });
+
+  it("hides when the display has no collision-free side", () => {
+    expect(
+      clampOverlayOriginClearOfCursor(
+        { x: 8, y: 8 },
+        { x: 80, y: 48 },
+        {
+          id: 4,
+          bounds: { x: 0, y: 0, width: 160, height: 112 },
+        },
       ),
     ).toBeNull();
   });
