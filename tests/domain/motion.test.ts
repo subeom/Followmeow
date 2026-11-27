@@ -68,4 +68,12 @@ describe("spring and turn", () => {
     expect(turn.update(-36, false, false, 1_130)).toBe(false);
     expect(turn.update(24, false, true, 1_161)).toBe(true);
   });
+
+  it("clears active and lockout turn state on reset", () => {
+    const turn = new TurnTracker();
+    expect(turn.update(12, true, false, 1_000)).toBe(true);
+    turn.reset();
+    expect(turn.activeAt(1_050)).toBe(false);
+    expect(turn.update(12, true, false, 1_050)).toBe(true);
+  });
 });

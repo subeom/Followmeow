@@ -147,4 +147,50 @@ describe("follow controller", () => {
       Array.from({ length: 12 }, (_, index) => index + 1),
     );
   });
+
+  it.each(["stale-cursor", "screen-unknown"] as const)(
+    "initializes at the next target after a %s discontinuity",
+    (reason) => {
+      const frames: RenderFrame[] = [];
+      const controller = new FollowController(
+        defaultSettings("darwin"),
+        false,
+        (frame) => frames.push(frame),
+      );
+      controller.rendererReady();
+      controller.tick(sample(1, 100, 1_000), 1_000);
+      if (reason === "stale-cursor") {
+        controller.tick(sample(2, 110, 1_016), 1_300);
+      } else {
+        controller.tick(sample(2, 2_100, 1_016), 1_016);
+      }
+      expect(frames.at(-1)).toMatchObject({ kind: "hide", reason });
+
+      controller.tick(sample(3, 1_000, 1_316), 1_316);
+      const recovered = frames.at(-1);
+      expect(recovered).toMatchObject({ kind: "show", motion: "idle" });
+      if (recovered?.kind === "show") {
+        expect(recovered.bounds.x).toBeCloseTo(822, 6);
+      }
+    },
+  );
+
+  it("keeps facing through a 1-DIP reversal and commits at the turn threshold", () => {
+    const frames: RenderFrame[] = [];
+    const controller = new FollowController(
+      defaultSettings("darwin"),
+      false,
+      (frame) => frames.push(frame),
+    );
+    controller.rendererReady();
+    controller.tick(sample(1, 500, 1_000), 1_000);
+    controller.tick(sample(2, 499, 1_016), 1_016);
+    expect(frames.at(-1)).toMatchObject({ facesRight: true });
+
+    controller.tick(sample(3, 480, 1_032), 1_032);
+    expect(frames.at(-1)).toMatchObject({
+      facesRight: false,
+      motion: "turn",
+    });
+  });
 });

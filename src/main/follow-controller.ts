@@ -14,6 +14,7 @@ import {
 import {
   SpringFollower,
   TurnTracker,
+  TURN_DISPLACEMENT_DIP,
   chooseMotionState,
 } from "../domain/motion";
 import { evaluateVisibility } from "../domain/policy";
@@ -103,6 +104,12 @@ export class FollowController {
         this.previousDisplayGeneration = sample.displayGeneration;
         this.resetMotion();
       }
+      if (
+        decision.reason === "stale-cursor" ||
+        decision.reason === "screen-unknown"
+      ) {
+        this.resetMotion();
+      }
       this.emitHide(decision.reason, nowMs);
       return;
     }
@@ -189,18 +196,25 @@ export class FollowController {
       const deltaY = sample.cursor.y - this.lastSample.cursor.y;
       const distance = Math.hypot(deltaX, deltaY);
       const previousFacesRight = this.facesRight;
-      if (distance >= 0.5) {
-        this.heading = { x: deltaX / distance, y: deltaY / distance };
-        if (Math.abs(deltaX) >= 0.5) {
-          this.facesRight = deltaX > 0;
-        }
-      }
-      this.turns.update(
+      const desiredFacesRight = deltaX >= 0;
+      const turnActive = this.turns.update(
         deltaX,
         previousFacesRight,
-        this.facesRight,
+        desiredFacesRight,
         sample.observedAtMs,
       );
+      if (
+        turnActive &&
+        previousFacesRight !== desiredFacesRight
+      ) {
+        this.facesRight = desiredFacesRight;
+      }
+      if (
+        distance >= 0.5 &&
+        Math.abs(deltaX) >= TURN_DISPLACEMENT_DIP
+      ) {
+        this.heading = { x: deltaX / distance, y: deltaY / distance };
+      }
     }
     return clampOverlayOrigin(
       desiredOverlayOrigin(sample.cursor, this.heading),
@@ -296,6 +310,7 @@ export class FollowController {
   }
 
   private resetMotion(): void {
+    this.turns.reset();
     this.follower = null;
     this.lastSample = null;
     this.heading = { x: 1, y: 0 };

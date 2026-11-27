@@ -21,7 +21,7 @@ const RUN_FOLLOWER_LAG = 24;
 const SETTLE_MS = 180;
 const TURN_DURATION_MS = 120;
 const TURN_LOCKOUT_MS = 160;
-const TURN_DISPLACEMENT_DIP = 12;
+export const TURN_DISPLACEMENT_DIP = 12;
 
 function finiteOrZero(value: number): number {
   return Number.isFinite(value) ? value : 0;
@@ -146,6 +146,11 @@ export class TurnTracker {
       return true;
     }
     return false;
+  }
+
+  reset(): void {
+    this.turnStartedAtMs = null;
+    this.lastTurnAtMs = null;
   }
 
   private assertTime(nowMs: number): void {
