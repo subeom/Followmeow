@@ -48,4 +48,6 @@ jobs:
         with:
           name: followmeow-${{ matrix.platform }}-${{ matrix.arch }}
           if-no-files-found: error
-          path: release/
+          path: |
+            release/Followmeow-*-${{ matrix.platform }}-${{ matrix.arch }}.zip
+            release/Followmeow-*-${{ matrix.platform }}-${{ matrix.arch }}.exe

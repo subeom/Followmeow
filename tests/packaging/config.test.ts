@@ -51,7 +51,22 @@ describe("packaging", () => {
       ".github/workflows/ci.yml",
       ".github/workflows/release.yml",
     ]) {
-      expect(readFileSync(path, "utf8")).toContain("npm run test:runtime");
+      const workflow = readFileSync(path, "utf8");
+      expect(workflow).toContain("npm run test:runtime");
+      expect(workflow.match(/npm run build/g)).toHaveLength(1);
+      expect(workflow).not.toContain("path: release/");
+      expect(workflow).toContain(
+        "release/Followmeow-*-${{ matrix.platform }}-${{ matrix.arch }}.zip",
+      );
+      expect(workflow).toContain(
+        "release/Followmeow-*-${{ matrix.platform }}-${{ matrix.arch }}.exe",
+      );
     }
+    expect(manifest.scripts["test:runtime"]).toBe(
+      "vitest run --run tests/runtime/bootstrap.test.ts",
+    );
+    expect(manifest.scripts["test:runtime:clean"]).toBe(
+      "npm run build && npm run test:runtime",
+    );
   });
 });
