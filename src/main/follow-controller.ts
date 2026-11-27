@@ -197,13 +197,17 @@ export class FollowController {
       const distance = Math.hypot(deltaX, deltaY);
       const previousFacesRight = this.facesRight;
       const desiredFacesRight = deltaX >= 0;
-      const turnActive = this.turns.update(
-        deltaX,
-        previousFacesRight,
-        desiredFacesRight,
-        sample.observedAtMs,
-      );
+      const turnWasActive = this.turns.activeAt(sample.observedAtMs);
+      const turnActive =
+        turnWasActive ||
+        this.turns.update(
+          deltaX,
+          previousFacesRight,
+          desiredFacesRight,
+          sample.observedAtMs,
+        );
       if (
+        !turnWasActive &&
         turnActive &&
         previousFacesRight !== desiredFacesRight
       ) {
@@ -211,6 +215,7 @@ export class FollowController {
       }
       if (
         distance >= 0.5 &&
+        !turnWasActive &&
         Math.abs(deltaX) >= TURN_DISPLACEMENT_DIP
       ) {
         this.heading = { x: deltaX / distance, y: deltaY / distance };

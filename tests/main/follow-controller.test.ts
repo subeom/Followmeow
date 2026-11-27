@@ -192,5 +192,10 @@ describe("follow controller", () => {
       facesRight: false,
       motion: "turn",
     });
+    controller.tick(sample(4, 481, 1_033), 1_033);
+    expect(frames.at(-1)).toMatchObject({
+      facesRight: false,
+      motion: "turn",
+    });
   });
 });
