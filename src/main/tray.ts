@@ -1,7 +1,11 @@
 // SPDX-FileCopyrightText: 2026 subeomlee
 // SPDX-License-Identifier: GPL-2.0-only
 
-import type { AppSettings, LanguageMode } from "../domain/types";
+import type {
+  AppSettings,
+  LanguageMode,
+  PlatformName,
+} from "../domain/types";
 
 export type TrayAction =
   | { type: "toggle-enabled"; value: boolean }
@@ -25,6 +29,7 @@ export type TrayMenuEntry = Readonly<{
 export function buildTrayMenuModel(
   version: string,
   settings: AppSettings,
+  platform: PlatformName,
 ): TrayMenuEntry[] {
   const languageItems: readonly TrayMenuEntry[] = [
     {
@@ -66,7 +71,7 @@ export function buildTrayMenuModel(
     action: { type: "set-speed", value },
   }));
 
-  return [
+  const entries: TrayMenuEntry[] = [
     { label: `Followmeow ${version}`, enabled: false },
     {
       label: "Enable Followmeow",
@@ -86,7 +91,9 @@ export function buildTrayMenuModel(
         value: settings.motionPolicy !== "reduced",
       },
     },
-    {
+  ];
+  if (platform === "darwin") {
+    entries.splice(6, 0, {
       label: "Show over full screen",
       type: "checkbox",
       checked: settings.showOverFullScreen,
@@ -94,7 +101,10 @@ export function buildTrayMenuModel(
         type: "set-full-screen",
         value: !settings.showOverFullScreen,
       },
-    },
+    });
+  }
+  return [
+    ...entries,
     {
       label: "Launch at login",
       type: "checkbox",

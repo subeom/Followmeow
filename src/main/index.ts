@@ -127,7 +127,9 @@ async function bootstrap(): Promise<void> {
     update(settings: AppSettings) {
       nativeTray.setContextMenu(
         Menu.buildFromTemplate(
-          menuTemplate(buildTrayMenuModel(app.getVersion(), settings)),
+          menuTemplate(
+            buildTrayMenuModel(app.getVersion(), settings, platform),
+          ),
         ),
       );
       nativeTray.setImage(settings.enabled ? normalTrayImage : disabledTrayImage);

@@ -4,12 +4,16 @@ import { buildTrayMenuModel } from "../../src/main/tray";
 
 describe("tray menu model", () => {
   it("has stable menu order and selected radio values", () => {
-    const menu = buildTrayMenuModel("0.1.0", {
-      ...defaultSettings("darwin"),
-      languageMode: "한",
-      followSpeedPercent: 125,
-      motionPolicy: "reduced",
-    });
+    const menu = buildTrayMenuModel(
+      "0.1.0",
+      {
+        ...defaultSettings("darwin"),
+        languageMode: "한",
+        followSpeedPercent: 125,
+        motionPolicy: "reduced",
+      },
+      "darwin",
+    );
 
     expect(menu.map((item) => item.label)).toEqual([
       "Followmeow 0.1.0",
@@ -42,11 +46,18 @@ describe("tray menu model", () => {
   });
 
   it("checks automatic mode by default", () => {
-    const menu = buildTrayMenuModel("0.1.0", defaultSettings("win32"));
+    const menu = buildTrayMenuModel(
+      "0.1.0",
+      defaultSettings("win32"),
+      "win32",
+    );
     expect(
       menu
         .find((item) => item.label === "Torso label")
         ?.items?.find((item) => item.label === "Automatic")?.checked,
     ).toBe(true);
+    expect(menu.map((item) => item.label)).not.toContain(
+      "Show over full screen",
+    );
   });
 });
