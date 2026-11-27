@@ -130,15 +130,14 @@ export class TurnTracker {
   update(
     horizontalDisplacement: number,
     previousFacesRight: boolean,
-    facesRight: boolean,
+    facesRight: boolean | null,
     nowMs: number,
   ): boolean {
     this.assertTime(nowMs);
     if (this.activeAt(nowMs)) {
       return true;
     }
-    if (previousFacesRight === facesRight) {
-      this.clearCandidate();
+    if (facesRight === null) {
       return false;
     }
     if (
@@ -148,14 +147,24 @@ export class TurnTracker {
       this.clearCandidate();
       return false;
     }
+    const magnitude = Math.max(0, Math.abs(horizontalDisplacement));
+    if (facesRight === previousFacesRight) {
+      if (this.candidateFacesRight !== null) {
+        this.candidateDisplacement = Math.max(
+          0,
+          this.candidateDisplacement - magnitude,
+        );
+        if (this.candidateDisplacement === 0) {
+          this.clearCandidate();
+        }
+      }
+      return false;
+    }
     if (this.candidateFacesRight !== facesRight) {
       this.candidateFacesRight = facesRight;
       this.candidateDisplacement = 0;
     }
-    this.candidateDisplacement += Math.max(
-      0,
-      Math.abs(horizontalDisplacement),
-    );
+    this.candidateDisplacement += magnitude;
     if (this.candidateDisplacement < TURN_DISPLACEMENT_DIP) {
       return false;
     }

@@ -207,7 +207,8 @@ export class FollowController {
       const deltaY = sample.cursor.y - this.lastSample.cursor.y;
       const distance = Math.hypot(deltaX, deltaY);
       const previousFacesRight = this.facesRight;
-      const desiredFacesRight = deltaX >= 0;
+      const desiredFacesRight =
+        deltaX > 0 ? true : deltaX < 0 ? false : null;
       const turnWasActive = this.turns.activeAt(sample.observedAtMs);
       const turnActive =
         turnWasActive ||
@@ -220,6 +221,7 @@ export class FollowController {
       if (
         !turnWasActive &&
         turnActive &&
+        desiredFacesRight !== null &&
         previousFacesRight !== desiredFacesRight
       ) {
         this.facesRight = desiredFacesRight;
@@ -240,6 +242,7 @@ export class FollowController {
         distance >= 0.5 &&
         !turnWasActive &&
         Math.abs(deltaX) >= TURN_DISPLACEMENT_DIP &&
+        desiredFacesRight !== null &&
         desiredFacesRight === this.facesRight
       ) {
         this.heading = { x: deltaX / distance, y: deltaY / distance };

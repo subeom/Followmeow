@@ -80,6 +80,21 @@ describe("spring and turn", () => {
   it("accumulates opposite-direction movement below the turn threshold", () => {
     const turn = new TurnTracker();
     expect(turn.update(-8, true, false, 1_000)).toBe(false);
-    expect(turn.update(-8, true, false, 1_016)).toBe(true);
+    expect(turn.update(0, true, null, 1_016)).toBe(false);
+    expect(turn.update(-8, true, false, 1_032)).toBe(true);
+  });
+
+  it("accumulates a symmetric right reversal through stationary polling", () => {
+    const turn = new TurnTracker();
+    expect(turn.update(8, false, true, 1_000)).toBe(false);
+    expect(turn.update(0, false, null, 1_016)).toBe(false);
+    expect(turn.update(8, false, true, 1_032)).toBe(true);
+  });
+
+  it("reduces, rather than resets, progress on opposite-direction jitter", () => {
+    const turn = new TurnTracker();
+    expect(turn.update(-10, true, false, 1_000)).toBe(false);
+    expect(turn.update(3, true, true, 1_016)).toBe(false);
+    expect(turn.update(-5, true, false, 1_032)).toBe(true);
   });
 });

@@ -221,21 +221,30 @@ describe("follow controller", () => {
     controller.tick(sample(2, 492, 1_016), 1_016);
     expect(frames.at(-1)).toMatchObject({ facesRight: true });
 
-    controller.tick(sample(3, 484, 1_032), 1_032);
+    controller.tick(sample(3, 492, 1_032), 1_032);
+    expect(frames.at(-1)).toMatchObject({ facesRight: true });
+
+    controller.tick(sample(4, 484, 1_048), 1_048);
     expect(frames.at(-1)).toMatchObject({
       facesRight: false,
       motion: "turn",
     });
+    const turnStart = frames.length - 1;
     for (let index = 0; index < 60; index += 1) {
       controller.tick(
-        sample(4 + index, 484, 1_048 + index * 16),
-        1_048 + index * 16,
+        sample(5 + index, 484, 1_064 + index * 16),
+        1_064 + index * 16,
       );
     }
     const settledHeading = frames.at(-1);
     expect(settledHeading?.kind).toBe("show");
     if (settledHeading?.kind === "show") {
       expect(settledHeading.bounds.x).toBeGreaterThan(400);
+    }
+    for (const frame of frames.slice(turnStart)) {
+      if (frame.kind === "show") {
+        expect(excludesCursor(frame, { x: 484, y: 400 })).toBe(true);
+      }
     }
   });
 
